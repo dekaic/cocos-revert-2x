@@ -1,0 +1,34 @@
+{
+  "name": "cocos-revert-2x",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "dev": "ts-node --project tsconfig.json src/index.ts",
+    "prepare": "npm run build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dekaic/cocos-revert-2x.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/dekaic/cocos-revert-2x/issues"
+  },
+  "homepage": "https://github.com/dekaic/cocos-revert-2x#readme",
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@types/node": "^24.10.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3",
+    "sharp": "^0.33.5",
+    "uuid": "^8.3.2"
+  }
+}
