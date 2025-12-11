@@ -4,5 +4,8 @@ dist
 npm-debug.log*
 package-lock.json
 
+.DS_Store
+
 input
+input*
 output
