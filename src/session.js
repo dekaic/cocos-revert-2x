@@ -1,6 +1,6 @@
 let fs = require("fs");
 let path = require("path");
-let dir = require("./dir");
+let DirUtils = require("./utils/dir-utils");
 
 class Session {
     constructor(pid) {
@@ -11,13 +11,15 @@ class Session {
 
     async analysisCode(callback) {
         try {
-            const basePath = "./";
+            // 统一项目根路径，避免执行目录变化导致的相对路径失效
+            const projectRoot = path.resolve(__dirname, "..");
+            const resolveFromRoot = (...segments) => path.join(projectRoot, ...segments);
 
             // 设置全局资源路径
-            global.currPath = path.join(basePath, "input", "res");
+            global.currPath = resolveFromRoot("input", "res");
 
             // 加载并解析 settings.js，构造 CCSettings
-            const settingsContent = fs.readFileSync(path.join(basePath, "input", "src", "settings.js"));
+            const settingsContent = fs.readFileSync(resolveFromRoot("input", "src", "settings.js"));
             const settingsStr = settingsContent.toString("utf-8");
             const firstStatement = settingsStr.split(";")[0]; // 只取第一段定义
             const wrappedSettings = `let window = {CCSettings: {}};${firstStatement}`;
@@ -26,19 +28,19 @@ class Session {
             global.Settings = eval(wrappedSettings);
 
             // 初始化 conf，生成 output/mapsubs.json
-            const conf = require("./conf");
+            const conf = require("./porject/conf");
             await conf.init();
 
-            const mapSubsPath = path.join(__dirname, "output", "mapsubs.json");
+            const mapSubsPath = resolveFromRoot("output", "mapsubs.json");
             const mapSubsContent = fs.readFileSync(mapSubsPath, "utf-8");
             const mapSubsJson = JSON.parse(mapSubsContent);
             const bundleNames = Object.keys(mapSubsJson);
 
-            const needJsPath = "./needjs.json";
+            const needJsPath = resolveFromRoot("needjs.json");
             let needMap = {};
 
             // 读取需要分析的 js 映射表
-            const needJsStat = await dir.getStat(needJsPath);
+            const needJsStat = await DirUtils.getStat(needJsPath);
             if (needJsStat) {
                 const needJsContent = fs.readFileSync(needJsPath);
                 needMap = JSON.parse(needJsContent);
@@ -50,15 +52,15 @@ class Session {
             for (const bundleName of bundleNames) {
                 console.log("处理模块:", bundleName);
 
-                const bundleIndexPath = path.join("input", "assets", bundleName, "index.js");
-                const indexStat = await dir.getStat(bundleIndexPath);
+                const bundleIndexPath = resolveFromRoot("input", "assets", bundleName, "index.js");
+                const indexStat = await DirUtils.getStat(bundleIndexPath);
 
                 if (!indexStat) continue;
 
                 console.log("分析文件:", bundleIndexPath);
 
                 const code = fs.readFileSync(bundleIndexPath, "utf-8");
-                const Analysis = require("./analysis");
+                const Analysis = require("./analysis/analysis");
 
                 this.analysis = new Analysis(needMap);
                 const thisBundleHasResult = this.analysis.splitCompile(code);
@@ -94,7 +96,7 @@ class Session {
                     });
                 };
 
-                beautifyDirectory("output/scripts");
+                beautifyDirectory(resolveFromRoot("output", "scripts"));
             }
 
             callback && callback();

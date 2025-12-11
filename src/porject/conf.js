@@ -57,14 +57,14 @@ let path = require("path"),
     };
 async function init() {
     var e = "projects/result/cocos-2.4";
-    (await require("../dir").getStat(e)) &&
-        ((settings_project["group-list"] = global.Settings.groupList),
-        (settings_project["collision-matrix"] = global.Settings.collisionMatrix),
-        (settings_project["start-scene"] = path.basename(global.Settings.launchScene).split(".")[0]),
-        fs.mkdirSync(`./${e}/settings`, { recursive: !0 }),
-        fs.writeFileSync(`./${e}/settings/project.json`, JSON.stringify(settings_project)),
-        fs.writeFileSync(`./${e}/project.json`, JSON.stringify(project)),
-        fs.writeFileSync(`./${e}/jsconfig.json`, JSON.stringify(jsconfig)),
-        fs.writeFileSync(`./${e}/tsconfig.json`, JSON.stringify(tsconfig)));
+    // (await require("dir").getStat(e)) &&
+    //     ((settings_project["group-list"] = global.Settings.groupList),
+    //     (settings_project["collision-matrix"] = global.Settings.collisionMatrix),
+    //     (settings_project["start-scene"] = path.basename(global.Settings.launchScene).split(".")[0]),
+    //     fs.mkdirSync(`./${e}/settings`, { recursive: !0 }),
+    //     fs.writeFileSync(`./${e}/settings/project.json`, JSON.stringify(settings_project)),
+    //     fs.writeFileSync(`./${e}/project.json`, JSON.stringify(project)),
+    //     fs.writeFileSync(`./${e}/jsconfig.json`, JSON.stringify(jsconfig)),
+    //     fs.writeFileSync(`./${e}/tsconfig.json`, JSON.stringify(tsconfig)));
 }
 module.exports = { init: init };

@@ -1,6 +1,6 @@
 let fs = require("fs");
 let path = require("path");
-let UuidUtils = require("./utils/uuid-utils");
+let UuidUtils = require("../utils/uuid-utils");
 
 // 负责把打包后的 Cocos Creator 模块代码拆成单独脚本文件
 class Analysis {
