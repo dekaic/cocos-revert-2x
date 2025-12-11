@@ -1,6 +1,6 @@
 let fs = require("fs");
 let path = require("path");
-let DirUtils = require("./utils/dir-utils");
+let DirUtils = require("../utils/dir-utils");
 
 class Session {
     constructor(pid) {
@@ -28,7 +28,7 @@ class Session {
             global.Settings = eval(wrappedSettings);
 
             // 初始化 conf，生成 output/mapsubs.json
-            const conf = require("./porject/conf");
+            const conf = require("../porject/conf");
             await conf.init();
 
             const mapSubsPath = resolveFromRoot("output", "mapsubs.json");
@@ -60,7 +60,7 @@ class Session {
                 console.log("分析文件:", bundleIndexPath);
 
                 const code = fs.readFileSync(bundleIndexPath, "utf-8");
-                const Analysis = require("./analysis/analysis");
+                const Analysis = require("./analysis");
 
                 this.analysis = new Analysis(needMap);
                 const thisBundleHasResult = this.analysis.splitCompile(code);

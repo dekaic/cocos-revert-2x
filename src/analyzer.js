@@ -1,5 +1,5 @@
 const { v4: uuidv4 } = require("uuid");
-const UuidUtils = require("./utils/uuid-utils")
+const UuidUtils = require("./utils/uuid-utils");
 const { deserialize } = require("./libs/parseclass");
 const { GAnalys, GConfig, GFrameNames, GMapPlist, GUnkowns, GAnimMp } = require("./revert-state");
 
@@ -637,7 +637,9 @@ function analysAnimFrameAtlas(bundleName, packs, paths, uuids) {
                                             if (sbItem[5][j].includes(".")) {
                                                 pngItem2.fileout = this.correctPath(`${this.dirOut}${pngItem2.bundle}/unkown_sbine/${sbItem[5][j]}`);
                                             } else {
-                                                pngItem2.fileout = this.correctPath(`${this.dirOut}${pngItem2.bundle}/unkown_sbine/${owner.sbines.skname}${pngItem2.ext}`);
+                                                pngItem2.fileout = this.correctPath(
+                                                    `${this.dirOut}${pngItem2.bundle}/unkown_sbine/${owner.sbines.skname}${pngItem2.ext}`
+                                                );
                                             }
 
                                             console.log("pngfile.fileout = ", pngItem2.fileout);

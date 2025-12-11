@@ -1,6 +1,6 @@
 const revert = require("./revert");
 
-const NewSession = require("./session");
+const NewSession = require("./analysis/session");
 
 const ensureTrailingSlash = (dirPath) => (dirPath.endsWith(path.sep) ? dirPath : `${dirPath}${path.sep}`);
 

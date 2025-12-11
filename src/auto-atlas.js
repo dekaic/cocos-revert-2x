@@ -1,6 +1,6 @@
 const { v4: uuidv4 } = require("uuid");
 const sharp = require("sharp");
-const dir = require("./utils/dir-utils");
+const DirUtils = require("./utils/dir-utils");
 const { GAnalys, GCfgJson, GFrameNames } = require("./revert-state");
 
 // 拆分自动图集，生成单独贴图
@@ -62,7 +62,7 @@ async function SplitAutoAtlas() {
             const outPath = GAnalys[newUuid].fileout;
             const outDirArr = outPath.split("/");
             outDirArr.pop();
-            await dir.dirExists(outDirArr.join("/"));
+            await DirUtils.dirExists(outDirArr.join("/"));
 
             const rect = frameData.rect;
             const x = rect[0];

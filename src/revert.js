@@ -8,7 +8,7 @@ const RevertMeta = require("./revert-meta");
 const RevertPrefab = require("./revert-prefab");
 
 const { GAnalys, GConfig, GMapSubs } = require("./revert-state");
-const helpers = require("./helpers");
+const helpers = require("./utils/helpers")
 const { SplitAutoAtlas } = require("./auto-atlas");
 const { parseBundleConfig, analysFiles } = require("./bundle-config");
 const { analysBitmapAndPlist, analysPathsMaterialAndEffect, analysPacksPlist, analysAnimFrameAtlas, analystextureSetter } = require("./analyzer");

@@ -1,7 +1,7 @@
 const fs = require("fs");
 const UuidUtils = require("./utils/uuid-utils");
-const dir = require("./utils/dir-utils");
 const { EXT_MAP, GMapSubs, GCfgJson, GAnalys, GConfig, GFrameNames, GAnimMp } = require("./revert-state");
+const { analysBitmapAndPlist, analystextureSetter, analysAnimFrameAtlas, analysPacksPlist, analysPathsMaterialAndEffect } = require("./analyzer");
 
 // 解析 bundle 的 config.json
 function parseBundleConfig(bundleName, cfgJson) {
@@ -152,11 +152,17 @@ function analysFiles(bundleName, cfgJson) {
     const paths = cfgJson.paths || {};
     const uuids = cfgJson.uuids || [];
 
-    this.analysBitmapAndPlist(bundleName, packs, paths, uuids);
-    this.analystextureSetter(bundleName, packs, paths, uuids);
-    this.analysAnimFrameAtlas(bundleName, packs, paths, uuids);
-    this.analysPacksPlist(bundleName, packs, paths, uuids);
-    this.analysPathsMaterialAndEffect(bundleName, packs, paths, uuids);
+    analysBitmapAndPlist(bundleName, packs, paths, uuids);
+    analystextureSetter(bundleName, packs, paths, uuids);
+    analysAnimFrameAtlas(bundleName, packs, paths, uuids);
+    analysPacksPlist(bundleName, packs, paths, uuids);
+    analysPathsMaterialAndEffect(bundleName, packs, paths, uuids);
+
+    // this.analysBitmapAndPlist(bundleName, packs, paths, uuids);
+    // this.analystextureSetter(bundleName, packs, paths, uuids);
+    // this.analysAnimFrameAtlas(bundleName, packs, paths, uuids);
+    // this.analysPacksPlist(bundleName, packs, paths, uuids);
+    // this.analysPathsMaterialAndEffect(bundleName, packs, paths, uuids);
 }
 
 module.exports = {
