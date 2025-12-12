@@ -12,7 +12,7 @@ class Session {
     async analysisCode(callback) {
         try {
             // 统一项目根路径，避免执行目录变化导致的相对路径失效
-            const projectRoot = path.resolve(__dirname, "..");
+            const projectRoot = path.resolve(__dirname, "../..");
             const resolveFromRoot = (...segments) => path.join(projectRoot, ...segments);
 
             // 设置全局资源路径

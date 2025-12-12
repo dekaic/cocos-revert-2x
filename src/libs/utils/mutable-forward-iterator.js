@@ -1,21 +1,62 @@
-function MutableForwardIterator(t) {
-  ((this.i = 0), (this.array = t));
+/**
+ * @example
+ * var array = [0, 1, 2, 3, 4];
+ * var iterator = new cc.js.array.MutableForwardIterator(array);
+ * for (iterator.i = 0; iterator.i < array.length; ++iterator.i) {
+ *     var item = array[iterator.i];
+ *     ...
+ * }
+ */
+function MutableForwardIterator(array) {
+    this.i = 0;
+    this.array = array;
 }
+
 var proto = MutableForwardIterator.prototype;
-((proto.remove = function (t) {
-  0 <= (t = this.array.indexOf(t)) && this.removeAt(t);
-}),
-  (proto.removeAt = function (t) {
-    (this.array.splice(t, 1), t <= this.i && --this.i);
-  }),
-  (proto.fastRemove = function (t) {
-    0 <= (t = this.array.indexOf(t)) && this.fastRemoveAt(t);
-  }),
-  (proto.fastRemoveAt = function (t) {
-    var r = this.array;
-    ((r[t] = r[r.length - 1]), --r.length, t <= this.i && --this.i);
-  }),
-  (proto.push = function (t) {
-    this.array.push(t);
-  }),
-  (module.exports = MutableForwardIterator));
+
+proto.remove = function (value) {
+    var index = this.array.indexOf(value);
+    if (index >= 0) {
+        this.removeAt(index);
+    }
+};
+proto.removeAt = function (i) {
+    this.array.splice(i, 1);
+
+    if (i <= this.i) {
+        --this.i;
+    }
+};
+proto.fastRemove = function (value) {
+    var index = this.array.indexOf(value);
+    if (index >= 0) {
+        this.fastRemoveAt(index);
+    }
+};
+proto.fastRemoveAt = function (i) {
+    var array = this.array;
+    array[i] = array[array.length - 1];
+    --array.length;
+
+    if (i <= this.i) {
+        --this.i;
+    }
+};
+
+proto.push = function (item) {
+    this.array.push(item);
+};
+
+//js.getset(proto, 'length',
+//    function () {
+//        return this.array.length;
+//    },
+//    function (len) {
+//        this.array.length = len;
+//        if (this.i >= len) {
+//            this.i = len - 1;
+//        }
+//    }
+//);
+
+module.exports = MutableForwardIterator;

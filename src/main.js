@@ -67,9 +67,9 @@ const main = () => {
     revert.start(() => {
         console.log("Revert process completed.");
 
-        NewSession.NewSession(1).analysisCode(() => {
-            console.log("Session process completed.");
-        });
+        // NewSession.NewSession(1).analysisCode(() => {
+        //     console.log("Session process completed.");
+        // });
     });
 };
 

@@ -1,0 +1,15 @@
+# Add directories or file patterns to ignore during indexing (e.g. foo/ or *.csv)
+
+# input
+input
+input*
+
+# output
+output
+output*
+
+# node_modules
+node_modules
+
+
+package-lock.json
