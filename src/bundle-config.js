@@ -1,19 +1,30 @@
 const fs = require("fs");
 const UuidUtils = require("./utils/uuid-utils");
-const { EXT_MAP, GMapSubs, GCfgJson, GAnalys, GConfig, GFrameNames, GAnimMp } = require("./revert-state");
 const { analysBitmapAndPlist, analystextureSetter, analysAnimFrameAtlas, analysPacksPlist, analysPathsMaterialAndEffect } = require("./analyzer");
 
 // 解析 bundle 的 config.json
-function parseBundleConfig(bundleName, cfgJson) {
+function parseBundleConfig(ctx, bundleName, cfgJson) {
+    const {
+        assets: GAnalys,
+        configs: GConfig,
+        bundlePriority: GMapSubs,
+        bundleCfgJson: GCfgJson,
+        spriteFrameNames: GFrameNames,
+        animClipsByName: GAnimMp,
+    } = ctx.state;
+    const EXT_MAP = ctx.extMap;
+    const { correctPath } = ctx.helpers;
+    const { dirOut } = ctx;
+
     // 统计 bundle 依赖次数
     GMapSubs[bundleName] = GMapSubs[bundleName] || 0;
     GMapSubs[bundleName] += 1;
 
-    if (!fs.existsSync(this.dirOut)) {
-        fs.mkdirSync(this.dirOut);
+    if (!fs.existsSync(dirOut)) {
+        fs.mkdirSync(dirOut);
     }
 
-    const bundleOutDir = `${this.dirOut}${bundleName}/`;
+    const bundleOutDir = `${dirOut}${bundleName}/`;
     if (!fs.existsSync(bundleOutDir)) {
         fs.mkdirSync(bundleOutDir);
     }
@@ -29,13 +40,21 @@ function parseBundleConfig(bundleName, cfgJson) {
     const { paths, types } = cfgJson;
     const uuids = cfgJson.uuids;
 
+    const decodeUuid = (value) => {
+        if (typeof value !== "string" || value.includes("-")) {
+            return value;
+        }
+        if (value.length === 22 || value.length === 23 || value.length === 32) {
+            return UuidUtils.decompressUuid(value);
+        }
+        return value;
+    };
+
     // 解压短 uuid
     for (let i = 0; i < uuids.length; i++) {
-        const u = uuids[i];
-        if (u.length >= 10) {
-            uuids[i] = UuidUtils.decompressUuid(u);
-        }
-        console.log(`${bundleName}: ${i} = ${u} : ${uuids[i]}`);
+        const rawUuid = uuids[i];
+        uuids[i] = decodeUuid(rawUuid);
+        console.log(`${bundleName}: ${i} = ${rawUuid} : ${uuids[i]}`);
     }
 
     GCfgJson[bundleName] = cfgJson;
@@ -56,15 +75,15 @@ function parseBundleConfig(bundleName, cfgJson) {
 
             if (EXT_MAP[types[typeIndex]]) {
                 if (GAnalys[uuid].ext === ".atlas") {
-                    GAnalys[uuid].fileout = this.correctPath(`${bundleOutDir}${pathDir}.atlas`);
+                    GAnalys[uuid].fileout = correctPath(`${bundleOutDir}${pathDir}.atlas`);
                 } else if (GAnalys[uuid].ext === ".bin" && types[typeIndex] !== "cc.BufferAsset") {
-                    GAnalys[uuid].fileout = this.correctPath(`${bundleOutDir}${pathDir}.skel`);
+                    GAnalys[uuid].fileout = correctPath(`${bundleOutDir}${pathDir}.skel`);
                 } else if (types[typeIndex] === "cc.Asset") {
-                    GAnalys[uuid].fileout = this.correctPath(`${bundleOutDir}${pathDir}${GAnalys[uuid].ext}`);
+                    GAnalys[uuid].fileout = correctPath(`${bundleOutDir}${pathDir}${GAnalys[uuid].ext}`);
                 } else if (GAnalys[uuid].ext === ".jpg") {
-                    GAnalys[uuid].fileout = this.correctPath(`${bundleOutDir}${pathDir}.jpg`);
+                    GAnalys[uuid].fileout = correctPath(`${bundleOutDir}${pathDir}.jpg`);
                 } else {
-                    GAnalys[uuid].fileout = this.correctPath(`${bundleOutDir}${pathDir}${EXT_MAP[types[typeIndex]]}`);
+                    GAnalys[uuid].fileout = correctPath(`${bundleOutDir}${pathDir}${EXT_MAP[types[typeIndex]]}`);
                 }
             } else {
                 // 非 EXT_MAP 中的类型，部分需要特殊处理
@@ -78,7 +97,7 @@ function parseBundleConfig(bundleName, cfgJson) {
             GAnalys[uuid] = GAnalys[uuid] || GConfig[uuid] || {};
             GAnalys[uuid].ttype = types[typeIndex];
             GAnalys[uuid].ext = ".anim";
-            GAnalys[uuid].fileout = this.correctPath(`${bundleOutDir}${pathDir}${EXT_MAP[types[typeIndex]]}`);
+            GAnalys[uuid].fileout = correctPath(`${bundleOutDir}${pathDir}${EXT_MAP[types[typeIndex]]}`);
 
             const pathParts = pathDir.split("/");
             if (pathParts.length > 0) {
@@ -90,19 +109,19 @@ function parseBundleConfig(bundleName, cfgJson) {
         } else if (types[typeIndex] === "cc.JsonAsset") {
             if (GConfig[uuid]) {
                 GConfig[uuid].ttype = types[typeIndex];
-                GConfig[uuid].fileout = this.correctPath(`${bundleOutDir}${pathDir}${EXT_MAP[types[typeIndex]]}`);
+                GConfig[uuid].fileout = correctPath(`${bundleOutDir}${pathDir}${EXT_MAP[types[typeIndex]]}`);
             } else if (GAnalys[uuid]) {
                 GAnalys[uuid].ttype = types[typeIndex];
-                GAnalys[uuid].fileout = this.correctPath(`${bundleOutDir}${pathDir}${EXT_MAP[types[typeIndex]]}`);
+                GAnalys[uuid].fileout = correctPath(`${bundleOutDir}${pathDir}${EXT_MAP[types[typeIndex]]}`);
             } else {
                 GConfig[uuid] = GConfig[uuid] || { bundle: bundleName };
                 GConfig[uuid].ttype = types[typeIndex];
-                GConfig[uuid].fileout = this.correctPath(`${bundleOutDir}${pathDir}${EXT_MAP[types[typeIndex]]}`);
+                GConfig[uuid].fileout = correctPath(`${bundleOutDir}${pathDir}${EXT_MAP[types[typeIndex]]}`);
             }
         } else if (types[typeIndex] === "dragonBones.DragonBonesAsset" || types[typeIndex] === "dragonBones.DragonBonesAtlasAsset") {
             GAnalys[uuid] = GAnalys[uuid] || { bundle: bundleName };
             GAnalys[uuid].ttype = types[typeIndex];
-            GAnalys[uuid].fileout = this.correctPath(`${bundleOutDir}${pathDir}${EXT_MAP[types[typeIndex]]}`);
+            GAnalys[uuid].fileout = correctPath(`${bundleOutDir}${pathDir}${EXT_MAP[types[typeIndex]]}`);
         } else {
             GFrameNames[uuid] = `${bundleOutDir}${pathDir}`;
         }
@@ -132,31 +151,31 @@ function parseBundleConfig(bundleName, cfgJson) {
                     }
                 }
 
-                item.fileout = this.correctPath(`${bundleOutDir}/unkown_particle/${pname}.plist`);
+                item.fileout = correctPath(`${bundleOutDir}/unkown_particle/${pname}.plist`);
             }
 
             // 没有类型信息的 mp3，默认当 AudioClip
             if (item.ext === ".mp3") {
                 item.ttype = "cc.AudioClip";
-                item.fileout = this.correctPath(`${bundleOutDir}/unkown_video/${id}.mp3`);
+                item.fileout = correctPath(`${bundleOutDir}/unkown_video/${id}.mp3`);
             }
         }
     }
 
-    this.analysFiles(bundleName, cfgJson);
+    analysFiles(ctx, bundleName, cfgJson);
 }
 
 // 分析一个 bundle 内的所有文件
-function analysFiles(bundleName, cfgJson) {
+function analysFiles(ctx, bundleName, cfgJson) {
     const packs = cfgJson.packs || {};
     const paths = cfgJson.paths || {};
     const uuids = cfgJson.uuids || [];
 
-    analysBitmapAndPlist(bundleName, packs, paths, uuids);
-    analystextureSetter(bundleName, packs, paths, uuids);
-    analysAnimFrameAtlas(bundleName, packs, paths, uuids);
-    analysPacksPlist(bundleName, packs, paths, uuids);
-    analysPathsMaterialAndEffect(bundleName, packs, paths, uuids);
+    analysBitmapAndPlist(ctx, bundleName, packs, paths, uuids);
+    analystextureSetter(ctx, bundleName, packs, paths, uuids);
+    analysAnimFrameAtlas(ctx, bundleName, packs, paths, uuids);
+    analysPacksPlist(ctx, bundleName, packs, paths, uuids);
+    analysPathsMaterialAndEffect(ctx, bundleName, packs, paths, uuids);
 
     // this.analysBitmapAndPlist(bundleName, packs, paths, uuids);
     // this.analystextureSetter(bundleName, packs, paths, uuids);

@@ -54,7 +54,7 @@ function subsMaterialStr(code) {
 async function newEffectLoops(key, node, outStr, indent, isFirst) {
     if (Array.isArray(node)) {
         for (let i = 0; i < node.length; i++) {
-            outStr = await this.newEffectLoops("", node[i], outStr, indent, i === 0);
+            outStr = await newEffectLoops("", node[i], outStr, indent, i === 0);
         }
     } else if (typeof node === "object") {
         if (node.program) {
@@ -98,14 +98,14 @@ async function newEffectLoops(key, node, outStr, indent, isFirst) {
                     } else {
                         outStr += `${preIndent}  ${k}:\n`;
                     }
-                    outStr = await this.newEffectLoops(k, v, outStr, `${preIndent}  `);
+                    outStr = await newEffectLoops(k, v, outStr, `${preIndent}  `);
                 }
             } else {
                 if (isFirst) {
                     isFirst = false;
-                    outStr += `${preIndent}- ${k}: ${this.mapBlendValue(v)}\n`;
+                    outStr += `${preIndent}- ${k}: ${mapBlendValue(v)}\n`;
                 } else {
-                    outStr += `${preIndent}  ${k}: ${this.mapBlendValue(v)}\n`;
+                    outStr += `${preIndent}  ${k}: ${mapBlendValue(v)}\n`;
                 }
             }
         }
@@ -131,7 +131,7 @@ function plistJSONToXML(json) {
 \t<dict>
 `,
     };
-    this.plistWriteDict(ctx, json, "\t\t");
+    plistWriteDict(ctx, json, "\t\t");
     ctx.xml += `\t</dict>
 </plist>`;
     return ctx.xml;
@@ -164,7 +164,7 @@ function plistWriteDict(ctx, obj, indent) {
 `;
                 break;
             case "string":
-                ctx.xml += `${indent}<string>${this.plistEscapeXml(val)}</string>\n`;
+                ctx.xml += `${indent}<string>${plistEscapeXml(val)}</string>\n`;
                 break;
             case "number":
                 ctx.xml +=

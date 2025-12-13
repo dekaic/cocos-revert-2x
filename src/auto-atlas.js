@@ -1,15 +1,18 @@
 const { v4: uuidv4 } = require("uuid");
 const sharp = require("sharp");
 const DirUtils = require("./utils/dir-utils");
-const { GAnalys, GCfgJson, GFrameNames } = require("./revert-state");
 
 // 拆分自动图集，生成单独贴图
-async function SplitAutoAtlas() {
+async function SplitAutoAtlas(ctx) {
+    const { assets: GAnalys, bundleCfgJson: GCfgJson, spriteFrameNames: GFrameNames } = ctx.state;
+    const { correctPath } = ctx.helpers;
+    const { dirOut } = ctx;
+
     for (const [key, atlas] of Object.entries(GAnalys)) {
         if (!(atlas.bundle && atlas.frames && key.length < 22)) continue;
 
         const { paths, uuids } = GCfgJson[atlas.bundle];
-        const bundleOutDir = `${this.dirOut}${atlas.bundle}/`;
+        const bundleOutDir = `${dirOut}${atlas.bundle}/`;
         let basePath = `${key}/`;
 
         // 确定帧所在的基本路径
@@ -35,11 +38,11 @@ async function SplitAutoAtlas() {
                 targetPath = paths[index][0];
             }
 
-            targetPath = this.correctPath(`${bundleOutDir}${targetPath}.png`);
+            targetPath = correctPath(`${bundleOutDir}${targetPath}.png`);
 
             // 如果该 uuid 本身已有 GFrameNames 映射，则优先使用
             if (GFrameNames[frameUuid]) {
-                targetPath = this.correctPath(`${GFrameNames[frameUuid]}.png`);
+                targetPath = correctPath(`${GFrameNames[frameUuid]}.png`);
             }
 
             let bitmap = null;

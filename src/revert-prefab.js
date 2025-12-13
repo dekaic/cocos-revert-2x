@@ -2,7 +2,6 @@ const { unpackJSONs, deserialize } = require("./libs/parseclass");
 const UuidUtils = require("./utils/uuid-utils");
 const DirUtils = require("./utils/dir-utils");
 const fs = require("fs");
-const { GAnalys, GConfig, GFrameNames, GMapPlist } = require("./revert-state");
 
 // 记录已经生成过的 Prefab，避免重复输出
 const PrefabLoaded = {};
@@ -62,20 +61,31 @@ const RevertPrefab = {
     },
 
     // 解析 bundle 配置，生成场景 / prefab / 资源参数
-    async parseBundleConfig(revertObj, bundleName, configJson) {
+    async parseBundleConfig(ctx, bundleName, configJson) {
+        const { assets: GAnalys, configs: GConfig, spriteFrameNames: GFrameNames } = ctx.state;
+        const { isPicture, correctPath } = ctx.helpers;
+        const { dirOut } = ctx;
+
         const { uuids: uuidsList, types: typeList } = configJson;
+
+        const decodeUuid = (value) => {
+            if (typeof value !== "string" || value.includes("-")) {
+                return value;
+            }
+            if (value.length === 22 || value.length === 23 || value.length === 32) {
+                return UuidUtils.decompressUuid(value);
+            }
+            return value;
+        };
 
         // 先解压短 uuid
         for (let eIndex = 0; eIndex < uuidsList.length; eIndex++) {
-            const rawUuid = uuidsList[eIndex];
-            if (rawUuid.length >= 10) {
-                uuidsList[eIndex] = UuidUtils.decompressUuid(rawUuid);
-            }
+            uuidsList[eIndex] = decodeUuid(uuidsList[eIndex]);
         }
 
         const packs = configJson.packs || {};
         const paths = configJson.paths || {};
-        const outDir = `${revertObj.dirOut}${bundleName}/`;
+        const outDir = `${dirOut}${bundleName}/`;
 
         // packs 中的内容优先处理（可能是 Texture2D、Prefab 等）
         for (const [packUuid, packIndices] of Object.entries(packs)) {
@@ -93,7 +103,7 @@ const RevertPrefab = {
                         const texUuid = uuidsList[packIndices[idx]];
                         const texAttrs = one.split(",");
 
-                        if (texAttrs.length === 8 && GAnalys[texUuid] && revertObj.isPicture(GAnalys[texUuid].ext)) {
+                        if (texAttrs.length === 8 && GAnalys[texUuid] && isPicture(GAnalys[texUuid].ext)) {
                             GAnalys[texUuid].premultiplyAlpha = texAttrs[5].charCodeAt(0) === 49;
                             GAnalys[texUuid].genMipmaps = texAttrs[6].charCodeAt(0) === 49;
                             GAnalys[texUuid].packable = texAttrs[7].charCodeAt(0) === 49;
@@ -112,10 +122,8 @@ const RevertPrefab = {
                                 // 场景
                                 if (resource.__cid__ === "cc.SceneAsset") {
                                     console.log("start parse :", resource._name);
-                                    this.storeScene(resource._name, resource);
-
-                                    const sceneContent = this.storeScene(resource._name, resource);
-                                    const sceneOutPath = revertObj.correctPath(outDir + resource._name + ".fire");
+                                    const sceneContent = this.storeScene(ctx, resource._name, resource);
+                                    const sceneOutPath = correctPath(outDir + resource._name + ".fire");
 
                                     await this.writefile(sceneOutPath, sceneContent);
                                     await this.writeSceneMeta(sceneOutPath, resource._name, uuidsList[packIndices[packIndex]]);
@@ -123,10 +131,8 @@ const RevertPrefab = {
                                     // Prefab
                                 } else if (resource.__cid__ === "cc.Prefab") {
                                     console.log("start parse :", resource._name);
-                                    this.storePrefab(resource._name, resource);
-
-                                    const prefabContent = this.storePrefab(resource._name, resource);
-                                    let prefabOutPath = revertObj.correctPath(outDir + resource._name + ".prefab");
+                                    const prefabContent = this.storePrefab(ctx, resource._name, resource);
+                                    let prefabOutPath = correctPath(outDir + resource._name + ".prefab");
 
                                     if (paths[packIndices[packIndex]]) {
                                         prefabOutPath = `${outDir}${paths[packIndices[packIndex]][0]}.prefab`;
@@ -146,7 +152,7 @@ const RevertPrefab = {
                                 } else {
                                     // 其它资源上可能也携带纹理参数
                                     const targetUuid = uuidsList[packIndices[packIndex]];
-                                    if (GAnalys[targetUuid] && revertObj.isPicture(GAnalys[targetUuid].ext)) {
+                                    if (GAnalys[targetUuid] && isPicture(GAnalys[targetUuid].ext)) {
                                         GAnalys[targetUuid].premultiplyAlpha = resource._premultiplyAlpha;
                                         GAnalys[targetUuid].genMipmaps = resource._genMipmaps;
                                         GAnalys[targetUuid].packable = resource._packable;
@@ -179,9 +185,9 @@ const RevertPrefab = {
                 sceneObj._uuid = uuid;
 
                 console.log("start parse :", sceneObj._name);
-                const sceneContent = this.storeScene(sceneObj._name, sceneObj);
+                const sceneContent = this.storeScene(ctx, sceneObj._name, sceneObj);
 
-                const sceneOutPath = revertObj.correctPath(outDir + sceneObj._name + ".fire");
+                const sceneOutPath = correctPath(outDir + sceneObj._name + ".fire");
                 await this.writefile(sceneOutPath, sceneContent);
                 await this.writeSceneMeta(sceneOutPath, sceneObj._name, uuid);
             } else if (typeName === "cc.Prefab") {
@@ -194,9 +200,7 @@ const RevertPrefab = {
                 prefabObj._uuid = uuid;
 
                 console.log("start parse :", prefabObj._name);
-                this.storePrefab(prefabObj._name, prefabObj);
-
-                const prefabJson = this.storePrefab(prefabObj._name, prefabObj);
+                const prefabJson = this.storePrefab(ctx, prefabObj._name, prefabObj);
                 const prefabOutPath = `${outDir}${relativePath}.prefab`;
 
                 await this.writefile(prefabOutPath, prefabJson);
@@ -217,8 +221,8 @@ const RevertPrefab = {
                 const sceneObj = deserialize(sceneConfig);
 
                 console.log("start parse :", sceneObj._name);
-                const sceneContent = this.storeScene(sceneObj._name, sceneObj);
-                const sceneOutPath = revertObj.correctPath(outDir + sceneObj._name + ".fire");
+                const sceneContent = this.storeScene(ctx, sceneObj._name, sceneObj);
+                const sceneOutPath = correctPath(outDir + sceneObj._name + ".fire");
 
                 await this.writefile(sceneOutPath, sceneContent);
                 await this.writeSceneMeta(sceneOutPath, sceneObj._name, sceneUuid);
@@ -243,9 +247,7 @@ const RevertPrefab = {
                 deserialObj._uuid = configUuid;
 
                 console.log("start parse :", deserialObj._name);
-                this.storePrefab(deserialObj._name, deserialObj);
-
-                const prefabContent = this.storePrefab(deserialObj._name, deserialObj);
+                const prefabContent = this.storePrefab(ctx, deserialObj._name, deserialObj);
                 const prefabOut = outDir + deserialObj._name + ".prefab";
 
                 await this.writefile(prefabOut, prefabContent);
@@ -275,9 +277,7 @@ const RevertPrefab = {
                 deserialObj._uuid = analysUuid;
 
                 console.log("start parse :", deserialObj._name);
-                this.storePrefab(deserialObj._name, deserialObj);
-
-                const prefabContent = this.storePrefab(deserialObj._name, deserialObj);
+                const prefabContent = this.storePrefab(ctx, deserialObj._name, deserialObj);
                 const prefabOut = outDir + deserialObj._name + ".prefab";
 
                 await this.writefile(prefabOut, prefabContent);
@@ -291,7 +291,7 @@ const RevertPrefab = {
     },
 
     // 序列化场景为 .fire JSON
-    storeScene(name, sceneAsset) {
+    storeScene(ctx, name, sceneAsset) {
         const nodes = [];
 
         nodes[(sceneAsset.__id__ = 0)] = {
@@ -312,13 +312,13 @@ const RevertPrefab = {
             prefabAsset = { __uuid__: sceneAsset._uuid };
         }
 
-        this.checkChildren(sceneAsset.scene, null, nodes, prefabAsset);
+        this.checkChildren(ctx, sceneAsset.scene, null, nodes, prefabAsset);
 
         return JSON.stringify(nodes, null, 2);
     },
 
     // 序列化 Prefab 为 .prefab JSON
-    storePrefab(name, prefabAsset) {
+    storePrefab(ctx, name, prefabAsset) {
         const nodes = [];
 
         nodes[(prefabAsset.__id__ = 0)] = {
@@ -339,13 +339,13 @@ const RevertPrefab = {
             prefabInfo = { __uuid__: prefabAsset._uuid };
         }
 
-        this.checkChildren(prefabAsset.data, null, nodes, prefabInfo);
+        this.checkChildren(ctx, prefabAsset.data, null, nodes, prefabInfo);
 
         return JSON.stringify(nodes, null, 2);
     },
 
     // 递归处理节点树
-    checkChildren(node, parent, nodes, prefabInfo) {
+    checkChildren(ctx, node, parent, nodes, prefabInfo) {
         node.__id__ = nodes.length;
 
         const serialized = {
@@ -363,7 +363,7 @@ const RevertPrefab = {
         if (node._children) {
             for (let idx = 0; idx < node._children.length; idx++) {
                 serialized._children[idx] = { __id__: nodes.length };
-                this.checkChildren(node._children[idx], node, nodes, prefabInfo);
+                this.checkChildren(ctx, node._children[idx], node, nodes, prefabInfo);
             }
         }
 
@@ -375,7 +375,7 @@ const RevertPrefab = {
             for (let idx = 0; idx < node._components.length; idx++) {
                 if (node._components[idx]) {
                     serialized._components[serialized._components.length] = { __id__: nodes.length };
-                    this.checkComponents(node._components[idx], node, nodes);
+                    this.checkComponents(ctx, node._components[idx], node, nodes);
                 }
             }
         }
@@ -407,13 +407,13 @@ const RevertPrefab = {
                 if (Array.isArray(node[fieldName])) {
                     serialized[fieldName] = [];
                     for (let idx = 0; idx < node[fieldName].length; idx++) {
-                        const scriptParam = this.initScriptParams(node[fieldName][idx], nodes);
+                        const scriptParam = this.initScriptParams(ctx, node[fieldName][idx], nodes);
                         if (scriptParam) {
                             serialized[fieldName][serialized[fieldName].length] = scriptParam;
                         }
                     }
                 } else if (typeof node[fieldName] === "object" && node[fieldName] !== null) {
-                    const scriptParam = this.initScriptParams(node[fieldName], nodes);
+                    const scriptParam = this.initScriptParams(ctx, node[fieldName], nodes);
                     if (scriptParam) {
                         serialized[fieldName] = scriptParam;
                     }
@@ -452,7 +452,9 @@ const RevertPrefab = {
     },
 
     // 序列化脚本字段 / 资源引用
-    initScriptParams(value, nodes) {
+    initScriptParams(ctx, value, nodes) {
+        const { atlasBySpriteFrame: GMapPlist } = ctx.state;
+
         if (typeof value !== "object" || value === null) {
             return value;
         }
@@ -536,7 +538,7 @@ const RevertPrefab = {
     },
 
     // 处理组件
-    checkComponents(component, node, nodes) {
+    checkComponents(ctx, component, node, nodes) {
         component.__id__ = nodes.length;
 
         const serialized = {
@@ -576,13 +578,13 @@ const RevertPrefab = {
                 if (Array.isArray(component[fieldName])) {
                     serialized[fieldName] = [];
                     for (let idx = 0; idx < component[fieldName].length; idx++) {
-                        const scriptParam = this.initScriptParams(component[fieldName][idx], nodes);
+                        const scriptParam = this.initScriptParams(ctx, component[fieldName][idx], nodes);
                         if (scriptParam) {
                             serialized[fieldName][serialized[fieldName].length] = scriptParam;
                         }
                     }
                 } else if (typeof component[fieldName] === "object" && component[fieldName] !== null) {
-                    const scriptParam = this.initScriptParams(component[fieldName], nodes);
+                    const scriptParam = this.initScriptParams(ctx, component[fieldName], nodes);
                     if (scriptParam) {
                         serialized[fieldName] = scriptParam;
                     }
@@ -635,13 +637,13 @@ const RevertPrefab = {
                     if (Array.isArray(component[fieldName])) {
                         serialized[fieldName] = [];
                         for (let idx = 0; idx < component[fieldName].length; idx++) {
-                            const scriptParam = this.initScriptParams(component[fieldName][idx], nodes);
+                            const scriptParam = this.initScriptParams(ctx, component[fieldName][idx], nodes);
                             if (scriptParam) {
                                 serialized[fieldName][serialized[fieldName].length] = scriptParam;
                             }
                         }
                     } else if (typeof component[fieldName] === "object" && component[fieldName] !== null) {
-                        const scriptParam = this.initScriptParams(component[fieldName], nodes);
+                        const scriptParam = this.initScriptParams(ctx, component[fieldName], nodes);
                         if (scriptParam) {
                             serialized[fieldName] = scriptParam;
                         }

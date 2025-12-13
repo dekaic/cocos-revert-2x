@@ -1,9 +1,15 @@
 const fs = require("fs");
 const DirUtils = require("./utils/dir-utils");
-const { GAnalys, GFrameNames, GMapPlist } = require("./revert-state");
+
+const format = (template, ...args) =>
+    template.replace(/\{(\d+)\}/g, (match, index) => (args[index] === undefined ? match : String(args[index])));
 
 // 拷贝原始文件、生成 skel/json/atlas 等
-async function copyFiles() {
+async function copyFiles(ctx) {
+    const { assets: GAnalys, spriteFrameNames: GFrameNames } = ctx.state;
+    const { isPicture, correctPath } = ctx.helpers;
+    const { dirOut } = ctx;
+
     const unkownMap = {};
     const sbineMap = {};
 
@@ -25,8 +31,8 @@ async function copyFiles() {
                 await DirUtils.dirExists(arr.join("/"));
                 fs.copyFileSync(item.filein, out);
             }
-        } else if (item.filein && this.isPicture(item.ext)) {
-            let unkownPath = this.correctPath(`${this.dirOut}${item.bundle}/unkown/${key}`);
+        } else if (item.filein && isPicture(item.ext)) {
+            let unkownPath = correctPath(`${dirOut}${item.bundle}/unkown/${key}`);
 
             if (item.frames) {
                 let count = 0;
@@ -36,7 +42,7 @@ async function copyFiles() {
                     lastName = fname;
                 }
                 if (count === 1) {
-                    unkownPath = this.correctPath(`${this.dirOut}${item.bundle}/unkown/${lastName}`);
+                    unkownPath = correctPath(`${dirOut}${item.bundle}/unkown/${lastName}`);
                 }
             }
 
@@ -54,8 +60,8 @@ async function copyFiles() {
         const item2 = GAnalys[key];
         let out2 = item2.fileout;
 
-        if (!out2 && item2.filein && this.isPicture(item2.ext) && item2.frames) {
-            let unkownPath = this.correctPath(`${this.dirOut}${item2.bundle}/unkown/${key}`);
+        if (!out2 && item2.filein && isPicture(item2.ext) && item2.frames) {
+            let unkownPath = correctPath(`${dirOut}${item2.bundle}/unkown/${key}`);
 
             if (item2.frames) {
                 let count = 0;
@@ -65,16 +71,16 @@ async function copyFiles() {
                     lastName = fname2;
                 }
                 if (count === 1) {
-                    unkownPath = this.correctPath(`${this.dirOut}${item2.bundle}/unkown/${lastName}`);
+                    unkownPath = correctPath(`${dirOut}${item2.bundle}/unkown/${lastName}`);
                 }
             }
 
             if (!unkownMap[unkownPath]) {
                 console.log();
             }
-            item2.fileout = this.correctPath(unkownMap[unkownPath].path + unkownMap[unkownPath].ext);
+            item2.fileout = correctPath(unkownMap[unkownPath].path + unkownMap[unkownPath].ext);
             if (unkownMap[unkownPath].count > 1) {
-                item2.fileout = this.correctPath(`${unkownMap[unkownPath].path}/${key}${unkownMap[unkownPath].ext}`);
+                item2.fileout = correctPath(`${unkownMap[unkownPath].path}/${key}${unkownMap[unkownPath].ext}`);
             }
 
             const arr2 = item2.fileout.replace(/\\/g, "/").split("/");
@@ -95,9 +101,9 @@ async function copyFiles() {
             if (!out3) {
                 if (GFrameNames[key]) {
                     if (item3.ext === ".bin") {
-                        item3.fileout = this.correctPath(`${GFrameNames[key]}.skel`);
+                        item3.fileout = correctPath(`${GFrameNames[key]}.skel`);
                     } else {
-                        item3.fileout = this.correctPath(`${GFrameNames[key]}.json`);
+                        item3.fileout = correctPath(`${GFrameNames[key]}.json`);
                     }
                     out3 = item3.fileout;
                 } else {
@@ -107,8 +113,8 @@ async function copyFiles() {
                     }
                     out3 =
                         item3.ext === ".bin"
-                            ? this.correctPath(`${this.dirOut}${item3.bundle}/unkown_sbine/${item3.sbines.skname}.skel`)
-                            : this.correctPath(`${this.dirOut}${item3.bundle}/unkown_sbine/${item3.sbines.skname}.json`);
+                            ? correctPath(`${dirOut}${item3.bundle}/unkown_sbine/${item3.sbines.skname}.skel`)
+                            : correctPath(`${dirOut}${item3.bundle}/unkown_sbine/${item3.sbines.skname}.json`);
                 }
             }
 
@@ -159,12 +165,16 @@ async function copyFiles() {
 }
 
 // 生成 JsonAsset 对应的普通 json 文件及 meta
-async function newJsonFiles() {
+async function newJsonFiles(ctx) {
+    const { assets: GAnalys } = ctx.state;
+    const { correctPath } = ctx.helpers;
+    const { dirOut } = ctx;
+
     for (const [uuid, item] of Object.entries(GAnalys)) {
         if (item.ttype === "cc.JsonAsset") {
             const json = JSON.parse(item.content);
             if (!item.fileout) {
-                item.fileout = this.correctPath(`${this.dirOut}${item.bundle}/unkown_json/${json[5][0][1]}.json`);
+                item.fileout = correctPath(`${dirOut}${item.bundle}/unkown_json/${json[5][0][1]}.json`);
             }
 
             const outPath = item.fileout.replace(/\\/g, "/");
@@ -194,7 +204,11 @@ async function newJsonFiles() {
 }
 
 // 生成 dragonBones 相关 json + meta
-async function newDragonJsonFiles() {
+async function newDragonJsonFiles(ctx) {
+    const { assets: GAnalys } = ctx.state;
+    const { correctPath } = ctx.helpers;
+    const { dirOut } = ctx;
+
     for (const [uuid, item] of Object.entries(GAnalys)) {
         if (item.ttype !== "dragonBones.DragonBonesAsset" && item.ttype !== "dragonBones.DragonBonesAtlasAsset") {
             continue;
@@ -202,7 +216,7 @@ async function newDragonJsonFiles() {
 
         const json = JSON.parse(item.content);
         if (!item.fileout) {
-            item.fileout = this.correctPath(`${this.dirOut}${item.bundle}/unkown_json/${json[5][0][1]}.json`);
+            item.fileout = correctPath(`${dirOut}${item.bundle}/unkown_json/${json[5][0][1]}.json`);
         }
 
         const outPath = item.fileout.replace(/\\/g, "/");
@@ -230,7 +244,9 @@ async function newDragonJsonFiles() {
 }
 
 // 生成 TextAsset 文本及 meta
-async function newTextFiles() {
+async function newTextFiles(ctx) {
+    const { assets: GAnalys } = ctx.state;
+
     for (const [uuid, item] of Object.entries(GAnalys)) {
         if (item.ttype === "cc.TextAsset") {
             const outPath = item.fileout.replace(/\\/g, "/");
@@ -258,7 +274,11 @@ async function newTextFiles() {
 }
 
 // 生成 .effect 文件及 meta
-async function newEffectFiles(uuid, item) {
+async function newEffectFiles(ctx, uuid, item) {
+    const { spriteFrameNames: GFrameNames } = ctx.state;
+    const { newEffectLoops, subsMaterialStr, correctPath } = ctx.helpers;
+    const { dirOut } = ctx;
+
     const effectData = item.material.effect;
     const props = item.material.props;
     let effectName = "";
@@ -283,7 +303,7 @@ async function newEffectFiles(uuid, item) {
     let out = "CCEffect %{\n";
     if (techniques) {
         let pre = "";
-        out = await this.newEffectLoops("", { techniques }, out, pre);
+        out = await newEffectLoops("", { techniques }, out, pre);
     }
     out += "}%\n\n\n";
 
@@ -297,14 +317,14 @@ async function newEffectFiles(uuid, item) {
         if (inputJson.glsl3) {
             out =
                 `${out}CCProgram ${vertName} %{\n` +
-                this.subsMaterialStr(inputJson.glsl3.vert) +
+                subsMaterialStr(inputJson.glsl3.vert) +
                 `
 }% 
 
 
 ` +
                 `CCProgram ${fragName} %{\n` +
-                this.subsMaterialStr(inputJson.glsl3.frag) +
+                subsMaterialStr(inputJson.glsl3.frag) +
                 `
 }% 
 `;
@@ -312,10 +332,10 @@ async function newEffectFiles(uuid, item) {
     }
 
     let outPath = item.pathdir
-        ? `${this.dirOut}${item.bundle}/${item.pathdir}.effect`
+        ? `${dirOut}${item.bundle}/${item.pathdir}.effect`
         : GFrameNames[uuid]
-        ? this.correctPath(`${GFrameNames[uuid]}.effect`)
-        : `${this.dirOut}${item.bundle}/unkown_effect/${effectName}.effect`;
+        ? correctPath(`${GFrameNames[uuid]}.effect`)
+        : `${dirOut}${item.bundle}/unkown_effect/${effectName}.effect`;
 
     outPath = outPath.replace(/\\/g, "/");
     const arr = outPath.split("/");
@@ -340,11 +360,15 @@ async function newEffectFiles(uuid, item) {
 }
 
 // 生成 .mtl 材质文件及 meta
-async function newMaterialFiles() {
+async function newMaterialFiles(ctx) {
+    const { assets: GAnalys, spriteFrameNames: GFrameNames } = ctx.state;
+    const { correctPath } = ctx.helpers;
+    const { dirOut } = ctx;
+
     for (const [uuid, item] of Object.entries(GAnalys)) {
         if (item.material) {
             if (item.material.effect) {
-                await this.newEffectFiles(uuid, item);
+                await newEffectFiles(ctx, uuid, item);
             }
 
             if (!item.material.mtls) continue;
@@ -361,17 +385,17 @@ async function newMaterialFiles() {
                 };
 
                 if (Array.isArray(mtlRef.mtl[2])) {
-                    materialObj._techniqueData = await this.aniAnimsObjs(mtlRef.mtl[2], null);
+                    materialObj._techniqueData = await aniAnimsObjs(ctx, mtlRef.mtl[2], null);
                 }
 
                 let pathdir = item.pathdir;
                 pathdir = GAnalys[mtlRef.mtluuid] ? GAnalys[mtlRef.mtluuid].pathdir : pathdir;
 
                 let outPath = pathdir
-                    ? this.correctPath(`${this.dirOut}${item.bundle}/${pathdir}.mtl`)
+                    ? correctPath(`${dirOut}${item.bundle}/${pathdir}.mtl`)
                     : GFrameNames[mtlRef.mtluuid]
-                    ? this.correctPath(`${GFrameNames[mtlRef.mtluuid]}.mtl`)
-                    : `${this.dirOut}${item.bundle}/unkown_effect/${mtlRef.mtl[1]}.mtl`;
+                    ? correctPath(`${GFrameNames[mtlRef.mtluuid]}.mtl`)
+                    : `${dirOut}${item.bundle}/unkown_effect/${mtlRef.mtl[1]}.mtl`;
 
                 outPath = outPath.replace(/\\/g, "/");
                 const arr = outPath.split("/");
@@ -400,12 +424,16 @@ async function newMaterialFiles() {
 }
 
 // 生成 TTF 模板文件及 meta
-async function newTTFFiles() {
+async function newTTFFiles(ctx) {
+    const { assets: GAnalys } = ctx.state;
+    const { correctPath } = ctx.helpers;
+    const { dirOut } = ctx;
+
     for (const [uuid, item] of Object.entries(GAnalys)) {
         if (item.ttype === "cc.TTFFont") {
             if (!item.fileout) {
                 const name = item.ttfname || uuid;
-                item.fileout = this.correctPath(`${this.dirOut}${item.bundle}/unkown_ttf/${name}.ttf`);
+                item.fileout = correctPath(`${dirOut}${item.bundle}/unkown_ttf/${name}.ttf`);
             }
             const outPath = item.fileout.replace(/\\/g, "/");
             const arr = outPath.split("/");
@@ -434,7 +462,11 @@ async function newTTFFiles() {
 }
 
 // 生成 AnimationClip .anim 文件
-async function newAnimsFiles() {
+async function newAnimsFiles(ctx) {
+    const { assets: GAnalys } = ctx.state;
+    const { correctPath } = ctx.helpers;
+    const { dirOut } = ctx;
+
     for (const [, item] of Object.entries(GAnalys)) {
         try {
             if (!item.spanim) continue;
@@ -452,7 +484,7 @@ async function newAnimsFiles() {
                 if (propName === "curveData") {
                     let value = item.spanim[i + 1];
                     if (Array.isArray(value)) {
-                        value = await this.aniAnimsObjs(value, item.spanim_frames);
+                        value = await aniAnimsObjs(ctx, value, item.spanim_frames);
                     }
                     if (value) {
                         animObj[propName] = value;
@@ -464,7 +496,7 @@ async function newAnimsFiles() {
 
             const content = JSON.stringify(animObj, null, 2);
             if (!item.fileout) {
-                item.fileout = this.correctPath(`${this.dirOut}${item.bundle}/unkown_anim/${item.spanim[1]}.anim`);
+                item.fileout = correctPath(`${dirOut}${item.bundle}/unkown_anim/${item.spanim[1]}.anim`);
             }
             const outPath = item.fileout.replace(/\\/g, "/");
             const arr = outPath.split("/");
@@ -478,7 +510,7 @@ async function newAnimsFiles() {
 }
 
 // 解析动画曲线对象（递归结构）
-async function aniAnimsObjs(arr, frameUuids) {
+async function aniAnimsObjs(ctx, arr, frameUuids) {
     const obj = {};
     let lastKey = "";
     for (let i = 0; i < arr.length; i++) {
@@ -514,17 +546,17 @@ async function aniAnimsObjs(arr, frameUuids) {
             }
         } else if (node === 11) {
             i++;
-            obj[lastKey] = await this.aniAnimsObjs(arr[i], frameUuids);
+            obj[lastKey] = await aniAnimsObjs(ctx, arr[i], frameUuids);
         } else if (node === 12) {
             i++;
-            obj[lastKey] = await this.aniAnimsArray(arr[i], frameUuids);
+            obj[lastKey] = await aniAnimsArray(ctx, arr[i], frameUuids);
         }
     }
     return obj;
 }
 
 // 解析动画曲线数组
-async function aniAnimsArray(info, frameUuids) {
+async function aniAnimsArray(ctx, info, frameUuids) {
     const result = [];
     let lastKey = "";
     for (let i = 0; i < info[0].length; i++) {
@@ -579,7 +611,11 @@ async function aniAnimsArray(info, frameUuids) {
 }
 
 // 生成 BitmapFont 的 fnt 文件
-async function newFontsFiles() {
+async function newFontsFiles(ctx) {
+    const { assets: GAnalys, spriteFrameNames: GFrameNames } = ctx.state;
+    const { correctPath } = ctx.helpers;
+    const { dirOut } = ctx;
+
     for (const [, item] of Object.entries(GAnalys)) {
         if (!item.bitmap || !item.frames) continue;
 
@@ -587,20 +623,22 @@ async function newFontsFiles() {
             for (const [, frame] of Object.entries(item.frames)) {
                 let header =
                     'info face="仿宋" size={0} bold=0 italic=0 charset="" unicode=1 stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=1,1 outline=0 \n';
-                header = header.format(item.bitmap.info.fontSize);
-                header += "common lineHeight={0} base=28 scaleW={1} scaleH={2} pages=1 packed=0 alphaChnl=0 redChnl=0 greenChnl=0 blueChnl=0 \n".format(
+                header = format(header, item.bitmap.info.fontSize);
+                header += format(
+                    "common lineHeight={0} base=28 scaleW={1} scaleH={2} pages=1 packed=0 alphaChnl=0 redChnl=0 greenChnl=0 blueChnl=0 \n",
                     item.bitmap.info.commonHeight,
                     frame.originalSize[0],
                     frame.originalSize[1]
                 );
-                header += 'page id=0 file="{0}" \n'.format(item.bitmap.info.atlasName);
+                header += format('page id=0 file="{0}" \n', item.bitmap.info.atlasName);
 
                 let count = 0;
                 let charsStr = "";
                 for (const charId in item.bitmap.info.fontDefDictionary) {
                     count++;
                     const def = item.bitmap.info.fontDefDictionary[charId];
-                    charsStr += "char id={0} x={1} y={2} width={3} height={4} xoffset={5} yoffset={6} xadvance={7} page=0 chnl=15\n".format(
+                    charsStr += format(
+                        "char id={0} x={1} y={2} width={3} height={4} xoffset={5} yoffset={6} xadvance={7} page=0 chnl=15\n",
                         charId,
                         def.rect.x,
                         def.rect.y,
@@ -612,21 +650,21 @@ async function newFontsFiles() {
                     );
                 }
 
-                header += "chars count={0} \n".format(count);
+                header += format("chars count={0} \n", count);
                 const fntContent = header + charsStr;
 
                 let outPath = item.bitmap.fileout;
                 outPath =
                     outPath ||
                     (GFrameNames[item.bitmap.fntuuid]
-                        ? this.correctPath(`${GFrameNames[item.bitmap.fntuuid]}.fnt`)
-                        : this.correctPath(`${this.dirOut}${item.bundle}/unkown/${item.bitmap.name}.fnt`));
+                        ? correctPath(`${GFrameNames[item.bitmap.fntuuid]}.fnt`)
+                        : correctPath(`${dirOut}${item.bundle}/unkown/${item.bitmap.name}.fnt`));
 
                 outPath = outPath.replace(/\\/g, "/");
                 const arr = outPath.split("/");
                 arr.pop();
                 await DirUtils.dirExists(arr.join("/"));
-                item.bitmap.fileout = this.correctPath(outPath);
+                item.bitmap.fileout = correctPath(outPath);
 
                 fs.writeFileSync(outPath, fntContent, { undefined: void 0 }, (e) => {
                     e && console.log("copyFiles err:", e);
@@ -639,7 +677,10 @@ async function newFontsFiles() {
 }
 
 // 生成 TexturePacker 风格的 plist 文件
-async function newPlistFiles() {
+async function newPlistFiles(ctx) {
+    const { assets: GAnalys, atlasBySpriteFrame: GMapPlist } = ctx.state;
+    const { plistJSONToXML, correctPath } = ctx.helpers;
+
     for (const [uuid, item] of Object.entries(GAnalys)) {
         if (!item.frames) continue;
 
@@ -686,11 +727,11 @@ async function newPlistFiles() {
         metaInfo.textureFileName = texName;
         meta.metadata = metaInfo;
 
-        const plistStr = this.plistJSONToXML(meta);
+        const plistStr = plistJSONToXML(meta);
         const plistOut = item.fileout.split(".").slice(0, -1).join(".") + ".plist";
 
         item.plists = item.plists || { uuid: plistUuid };
-        item.plists.fileout = this.correctPath(plistOut);
+        item.plists.fileout = correctPath(plistOut);
 
         fs.writeFileSync(plistOut, plistStr, { undefined: void 0 }, (e) => {
             e && console.log("copyFiles err:", e);

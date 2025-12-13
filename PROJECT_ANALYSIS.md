@@ -9,26 +9,22 @@
 
 ### 目录结构与模块划分
 - `src/main.js`  
-  CLI 入口：解析 `-i/--input`、`-o/--output` 参数，设置 `revert.dirIn/dirOut`，调用 `revert.start()`。
+  CLI 入口：解析 `-i/--input`、`-o/--output` 等参数，创建 `Context`（`src/core/context.js`）并调用 `src/core/pipeline.js: runRevert(ctx)`；可选通过 `--scripts/--scripts-only` 启用脚本拆分（`src/core/plugins/script-extractor.js`）。
+
+- `src/core/context.js` / `src/core/state.js`  
+  运行上下文与状态容器：集中保存输入/输出路径、helpers、state（资源表/映射表等）与 logger，模块统一显式传 `ctx`（替代历史全局单例）。
+
+- `src/core/pipeline.js`  
+  主流程编排：`runRevert(ctx)` 串起“清理输出 → 扫描源文件 → bundle manifest 规范化/解析 → Prefab/Scene 还原 → auto-atlas 拆分 → 生成资源与 meta”。
 
 - `src/revert.js`  
-  主控制器与流水线编排：  
-  - 扫描输入目录、建立全局资源表  
-  - 解析每个 bundle 的 `config.json`  
-  - 调用 prefab/scene 反序列化、图集拆分、各类资源与 meta 生成  
-  依赖 `src/revert-state.js` 的全局状态。
+  兼容入口：保留 `revert.start(done)` 封装调用 `runRevert(ctx)`，用于旧调用方式/对比输出。
 
 - `src/revert-state.js`  
-  全局状态/数据模型：  
-  - `GAnalys`：uuid -> 资源主记录（文件信息、类型、frames、material、sbines 等）  
-  - `GConfig`：uuid -> 与主资源同名的 json/config 中间记录  
-  - `GMapSubs`：bundle 优先级/依赖统计  
-  - `GMapPlist`/`GMapFrame`：SpriteFrame/Atlas/Texture 的映射  
-  - `GAnimMp`、`GFrameNames`、`GUnkowns` 等辅助映射  
-  - `EXT_MAP`：Cocos 资源类型到输出扩展名映射。
+  旧版全局状态/数据模型（当前主流程已迁移到 `Context.state`，该文件主要保留用于历史对照）。
 
 - `src/bundle-config.js`  
-  Bundle 配置解析层：`parseBundleConfig(bundleName, cfgJson)`  
+  Bundle 配置解析层：`parseBundleConfig(ctx, bundleName, cfgJson)`  
   - 解压短 uuid  
   - 绑定 `ttype`、`fileout`、`pathdir`  
   - 为未显式列出的资源补默认类型/输出路径  
@@ -44,13 +40,13 @@
   依赖 `src/libs/parseclass.js` 的 `deserialize()`。
 
 - `src/revert-prefab.js`  
-  Scene/Prefab 还原层：`parseBundleConfig(revertObj, bundleName, configJson)`  
+  Scene/Prefab 还原层：`parseBundleConfig(ctx, bundleName, configJson)`  
   - 对 packs/paths/scenes 中的 `cc.SceneAsset` 和 `cc.Prefab` 反序列化为对象  
   - 用 `storeScene()` / `storePrefab()` 把对象树重新序列化为 Creator 2.x 标准 `.fire/.prefab` JSON  
   - `checkChildren()` 递归节点、`checkComponents()` 序列化组件字段、`initScriptParams()` 把引用转为 `{__uuid__}` / `{__id__}`。
 
 - `src/auto-atlas.js`  
-  自动图集拆分层：`SplitAutoAtlas()`  
+  自动图集拆分层：`SplitAutoAtlas(ctx)`  
   - 对 `GAnalys` 中带 `frames` 的大图（典型 auto-atlas）逐帧裁切  
   - 使用 `sharp` 按 `rect/rotated/originalSize/offset` 还原单帧 png  
   - 为每个帧生成新的 Texture2D 记录（新 uuid）与 `fileout`。
@@ -84,16 +80,15 @@
   - `parseclass.js` 实现 Creator pack JSON 的 `deserialize()` / `unpackJSONs()`。  
   - 依赖 `js.js`、`parsertool.js`、`value-types/*` 等引擎内建类型。
 
-- `src/analysis/*`（可选/默认未启用）  
-  脚本拆分分析层：  
-  - `analysis/session.js` 读取 `input/src/settings.js`、`output/mapsubs.json`、`needjs.json`，逐 bundle 分析 `input/assets/<bundle>/index.js`。  
-  - `analysis/analysis.js` 的 `splitCompile()`/`generatorCode()` 从 webpack 打包块中拆出单独脚本写到 `output/scripts/` 并生成 `.meta`。  
-  `main.js` 中调用被注释，属于手动开启的辅助功能。
+- `src/core/plugins/script-extractor.js`（可选/默认关闭）  
+  脚本拆分插件：从 bundle 的 `index*.js` 中拆出独立脚本到 `<dirOut>/scripts` 并生成 `.meta`（内部调用 `src/analysis/analysis.js: splitCompile()`）。  
+  - `src/analysis/session.js` 已降级为兼容入口（会提示 deprecated）。  
+  - 通过 `src/main.js` CLI 参数 `--scripts/--scripts-only` 启用。
 
 ---
 
 ### 核心数据模型（全局状态如何协作）
-- `GAnalys[uuid]` 主记录（在 `src/revert.js` 扫描阶段创建，后续被各分析器不断补全）：  
+- `GAnalys[uuid]` 主记录（当前在 `src/core/pipeline.js: scanSourceFiles()` 阶段创建，后续被各分析器不断补全）：  
   关键字段包括  
   - 文件维度：`filein`, `ext`, `content`, `bundle`, `width/height`  
   - 语义维度：`ttype`（Cocos 类型），`pathdir`（config paths 中的相对路径），`fileout`（最终输出路径）  
@@ -110,7 +105,7 @@
 ### 启动到完成的调用链（主流程）
 ```mermaid
 flowchart TD
-  A[src/main.js: main()] --> B[src/revert.js: start()]
+  A[src/main.js: main()] --> B[src/core/pipeline.js: runRevert(ctx)]
   B --> C[清理 output: DirUtils.clearDir]
   C --> D[扫描 input/assets<br/>收集 config.json]
   D --> E[二次扫描所有资源<br/>填充 GAnalys/GConfig]
@@ -120,22 +115,21 @@ flowchart TD
   H --> I[拆分 auto-atlas<br/>auto-atlas.SplitAutoAtlas]
   I --> J[生成/拷贝资源文件<br/>generators.*]
   J --> K[生成各类 .meta 与映射<br/>revert-meta.newMetaFiles]
-  K --> L[结束回调 done]
+  K --> L[结束与输出统计]
 ```
 
 ### 逐步描述（含数据流/状态变化/外部 I/O）
 1. **入口与参数处理**  
    - `src/main.js: parseCliArgs()` 读取命令行，默认输入 `./input/assets`、输出 `./output/`。  
-   - `applyOptions()` 写回到 `revert.dirIn/dirOut`。  
-   - 之后调用 `src/revert.js: revert.start(done)`。
+   - 创建 `Context`（`src/core/context.js`）并调用 `src/core/pipeline.js: runRevert(ctx)`（可选再跑脚本拆分插件）。
 
 2. **初始化输出目录**  
-   - `DirUtils.clearDir(this.dirOut)` 递归删除旧输出。  
-   - `DirUtils.getStat(this.dirIn)` 校验输入存在且为目录，否则退出。  
+   - `DirUtils.clearDir(ctx.dirOut)` 递归删除旧输出。  
+   - `DirUtils.getStat(ctx.dirIn)` 校验输入存在且为目录，否则退出。  
    外部 I/O：大量 fs 删除与 stat。
 
 3. **收集 bundle 的 `config.json`**  
-   - `DirUtils.walkSync(this.dirIn, entry.name==="config.json")` 扫描所有子目录，把每个 bundle 的 `config.json` 路径塞入 `bundleConfigs[]`。  
+   - `collectBundleConfigPaths(ctx.dirIn)` 扫描 `config*.json`，按 bundle 聚合并优先选择 `config.json` 作为入口。  
    数据流：得到 bundle 列表与配置入口。
 
 4. **扫描全部资源文件，建立主表 `GAnalys/GConfig`**  
@@ -212,23 +206,23 @@ flowchart TD
     外部 I/O：写大量 `.meta` 与映射 json。
 
 11. **结束回调**  
-    - `revert.start` 调用 `done()`，`main.js` 打印完成日志。
+    - `runRevert(ctx)` 结束后返回，`main.js` 打印完成日志；兼容入口 `src/revert.js: start(done)` 仍支持回调。
 
 ---
 
 ### 可选子生命周期：脚本拆分分析（默认关闭）
-- 入口在 `src/main.js` 中被注释：`NewSession.NewSession(1).analysisCode()`。  
-- `src/analysis/session.js: analysisCode()` 生命周期：  
-  1. 解析 `input/src/settings.js`，构造 `global.Settings`。  
-  2. 读取 `output/mapsubs.json` 得到 bundles。  
-  3. 读取 `needjs.json` 作为脚本白名单（`allcodes:1` 表示全导出）。  
-  4. 对每个 bundle 的 `input/assets/<bundle>/index.js` 调用 `src/analysis/analysis.js: splitCompile()` 拆 webpack 模块并写 `output/scripts/**.js(+.meta)`。  
-  5. 若有结果，用 `js-beautify` 递归格式化 `output/scripts`。  
-- 触发条件：手动取消注释/调用后运行。
+- 入口通过 CLI 启用：  
+  - 跟随主流程：`node src/main.js --scripts`（脚本输出到 `<dirOut>/scripts`）  
+  - 仅执行脚本拆分：`node src/main.js --scripts-only`（跳过资源还原流程）  
+- 实现：`src/core/plugins/script-extractor.js: runScriptExtraction(ctx)`  
+  1. 读取 `needjs.json` 作为脚本白名单（`allcodes:1` 表示全导出，可用 `--scripts-needjs` 指定路径）。  
+  2. 自动扫描 `config*.json` 找到 bundle 根目录，定位 `index*.js` 作为入口（或用 `--scripts-entry` 显式指定入口文件）。  
+  3. 对入口文件调用 `src/analysis/analysis.js: splitCompile()` 拆分模块并写出 `*.js(+.meta)`。  
+  4. 若有结果，默认对输出目录做一次 `js-beautify`（可用 `--no-scripts-beautify` 关闭）。  
+- 兼容：`src/analysis/session.js` 仍保留，但已降级为兼容入口并提示 deprecated。
 
 ---
 
 ## 需要你补充/确认的问题
 1. 当前仓库里 `protobufjs/google-protobuf/ws` 依赖与 `src/server.js` 为注释状态：是否有你期望分析的 **protobuf/网络交互子流程**（可能在别的分支或未提交文件里）？  
 2. 输入目录默认是 `input/assets`，但 `analysis/session.js` 还使用 `input/src/settings.js`：你的真实使用场景里输入会包含 **完整 build 输出（assets+src）** 还是仅 assets？这会影响脚本分析是否需要纳入主流程。
-

@@ -1,35 +1,32 @@
 const fs = require("fs");
+const path = require("path");
 const DirUtils = require("./utils/dir-utils");
 const { v4: uuidv4 } = require("uuid");
-const { GAnalys, GMapPlist, GMapFrame, GMapSubs } = require("./revert-state");
-
-// 保留全局引用（目前仅存储，不在本文件中使用）
-let RevertObj = null;
 
 const RevertMeta = {
     // 入口：生成所有类型资源的 meta，并输出统计 json
-    async newMetaFiles(revertObj) {
-        RevertObj = revertObj;
+    async newMetaFiles(ctx) {
+        const { atlasBySpriteFrame: GMapPlist, textureBySpriteFrame: GMapFrame, bundlePriority: GMapSubs } = ctx.state;
 
-        await this.newMetaPng();
-        await this.newMetaFnt();
-        await this.newMetaPlist();
-        await this.newMetaAtlas();
-        await this.newMetaSbine();
-        await this.newMetaAnims();
-        await this.newMetaAsset();
-        await this.newMetaVideo();
-        await this.newMetaParticle();
+        await this.newMetaPng(ctx);
+        await this.newMetaFnt(ctx);
+        await this.newMetaPlist(ctx);
+        await this.newMetaAtlas(ctx);
+        await this.newMetaSbine(ctx);
+        await this.newMetaAnims(ctx);
+        await this.newMetaAsset(ctx);
+        await this.newMetaVideo(ctx);
+        await this.newMetaParticle(ctx);
 
         // 输出 GMapPlist
         const mapPlistJson = JSON.stringify(GMapPlist, null, 2);
-        fs.writeFileSync(`${revertObj.dirOut}mapplist.json`, mapPlistJson, { undefined: void 0 }, (err) => {
+        fs.writeFileSync(`${ctx.dirOut}mapplist.json`, mapPlistJson, { undefined: void 0 }, (err) => {
             if (err) console.log("newMetaFiles err:", err);
         });
 
         // 输出 GMapFrame
         const mapFrameJson = JSON.stringify(GMapFrame, null, 2);
-        fs.writeFileSync(`${revertObj.dirOut}mapframe.json`, mapFrameJson, { undefined: void 0 }, (err) => {
+        fs.writeFileSync(`${ctx.dirOut}mapframe.json`, mapFrameJson, { undefined: void 0 }, (err) => {
             if (err) console.log("newMetaFiles err:", err);
         });
 
@@ -43,13 +40,15 @@ const RevertMeta = {
         }
 
         const mapSubsJson = JSON.stringify(GMapSubs, null, 2);
-        fs.writeFileSync(`${revertObj.dirOut}mapsubs.json`, mapSubsJson, { undefined: void 0 }, (err) => {
+        fs.writeFileSync(`${ctx.dirOut}mapsubs.json`, mapSubsJson, { undefined: void 0 }, (err) => {
             if (err) console.log("newMetaFiles err:", err);
         });
     },
 
     // cc.Asset / cc.BufferAsset
-    async newMetaAsset() {
+    async newMetaAsset(ctx) {
+        const { assets: GAnalys } = ctx.state;
+
         for (const [uuid, info] of Object.entries(GAnalys)) {
             if (info.ttype === "cc.Asset") {
                 const meta = {
@@ -96,7 +95,9 @@ const RevertMeta = {
     },
 
     // cc.ParticleAsset
-    async newMetaParticle() {
+    async newMetaParticle(ctx) {
+        const { assets: GAnalys } = ctx.state;
+
         for (const [uuid, info] of Object.entries(GAnalys)) {
             if (info.ttype !== "cc.ParticleAsset") continue;
 
@@ -123,7 +124,9 @@ const RevertMeta = {
     },
 
     // cc.AudioClip
-    async newMetaVideo() {
+    async newMetaVideo(ctx) {
+        const { assets: GAnalys } = ctx.state;
+
         for (const [uuid, info] of Object.entries(GAnalys)) {
             if (info.ttype !== "cc.AudioClip") continue;
 
@@ -152,7 +155,9 @@ const RevertMeta = {
     },
 
     // 动画 .anim
-    async newMetaAnims() {
+    async newMetaAnims(ctx) {
+        const { assets: GAnalys } = ctx.state;
+
         for (const [uuid, info] of Object.entries(GAnalys)) {
             if (!info.spanim) continue;
 
@@ -179,7 +184,9 @@ const RevertMeta = {
     },
 
     // spine 资源（.skel/.json + .atlas）
-    async newMetaSbine() {
+    async newMetaSbine(ctx) {
+        const { assets: GAnalys } = ctx.state;
+
         for (const [uuid, info] of Object.entries(GAnalys)) {
             if (!info.sbines) continue;
 
@@ -201,6 +208,7 @@ const RevertMeta = {
             const jsonMetaPath = `${info.fileout_jsons}.meta`;
             const jsonMetaStr = JSON.stringify(spineMeta, null, 2);
 
+            fs.mkdirSync(path.dirname(jsonMetaPath), { recursive: true });
             fs.writeFileSync(jsonMetaPath, jsonMetaStr, { undefined: void 0 }, (err) => {
                 if (err) console.log("newMetaSbine err:", err);
             });
@@ -226,6 +234,7 @@ const RevertMeta = {
 
             const atlasMetaStr = JSON.stringify(atlasMeta, null, 2);
 
+            fs.mkdirSync(path.dirname(atlasMetaPath), { recursive: true });
             fs.writeFileSync(atlasMetaPath, atlasMetaStr, { undefined: void 0 }, (err) => {
                 if (err) console.log("newMetaSbine err:", err);
             });
@@ -233,7 +242,9 @@ const RevertMeta = {
     },
 
     // .atlas 直接当 Asset
-    async newMetaAtlas() {
+    async newMetaAtlas(ctx) {
+        const { assets: GAnalys } = ctx.state;
+
         for (const [uuid, info] of Object.entries(GAnalys)) {
             if (info.ext !== ".atlas" || !info.fileout) continue;
 
@@ -252,7 +263,9 @@ const RevertMeta = {
     },
 
     // sprite-atlas（由 plist 生成）
-    async newMetaPlist() {
+    async newMetaPlist(ctx) {
+        const { assets: GAnalys, atlasBySpriteFrame: GMapPlist, textureBySpriteFrame: GMapFrame } = ctx.state;
+
         for (const [textureUuid, info] of Object.entries(GAnalys)) {
             if (!info.plists || !info.plists.fileout) continue;
 
@@ -317,7 +330,9 @@ const RevertMeta = {
     },
 
     // bitmap-font
-    async newMetaFnt() {
+    async newMetaFnt(ctx) {
+        const { assets: GAnalys } = ctx.state;
+
         for (const [, info] of Object.entries(GAnalys)) {
             if (!info.bitmap || !info.frames) continue;
 
@@ -343,7 +358,9 @@ const RevertMeta = {
     },
 
     // 带 frames 的 png 贴图（非 sprite-atlas）
-    async newMetaPng() {
+    async newMetaPng(ctx) {
+        const { assets: GAnalys } = ctx.state;
+
         for (const [textureUuid, info] of Object.entries(GAnalys)) {
             if (!info.frames) continue;
 

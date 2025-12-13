@@ -1,10 +1,13 @@
 const { v4: uuidv4 } = require("uuid");
 const UuidUtils = require("./utils/uuid-utils");
 const { deserialize } = require("./libs/parseclass");
-const { GAnalys, GConfig, GFrameNames, GMapPlist, GUnkowns, GAnimMp } = require("./revert-state");
 
 // 分析位图字体和 plist / material / effect / anim 等（来自 packs）
-function analysBitmapAndPlist(bundleName, packs, paths, uuids) {
+function analysBitmapAndPlist(ctx, bundleName, packs, paths, uuids) {
+    const { assets: GAnalys, configs: GConfig, animClipsByName: GAnimMp, atlasBySpriteFrame: GMapPlist } = ctx.state;
+    const { isAFrame, isPicture, correctPath } = ctx.helpers;
+    const { dirOut } = ctx;
+
     for (const [packUuid, packIndices] of Object.entries(packs)) {
         try {
             const cfg = GConfig[packUuid] || GAnalys[packUuid];
@@ -75,7 +78,7 @@ function analysBitmapAndPlist(bundleName, packs, paths, uuids) {
                         const pngUuid = entry[5][0];
 
                         // SpriteFrame 信息
-                        if (this.isAFrame(frameInfo) && this.isPicture(GAnalys[pngUuid].ext)) {
+                        if (isAFrame(frameInfo) && isPicture(GAnalys[pngUuid].ext)) {
                             console.log(`${pngUuid} has spriteframe info`);
                             frameInfo.name &&
                                 frameInfo.name !== "" &&
@@ -191,7 +194,7 @@ function analysBitmapAndPlist(bundleName, packs, paths, uuids) {
                                             delete GConfig[textUuid];
                                             GAnalys[textUuid].ttype = "cc.TextAsset";
                                             entry[5] = entry[0];
-                                            GAnalys[textUuid].fileout = this.correctPath(`${this.dirOut}${bundleName}/unkown_text/${entry[5][0][1]}.txt`);
+                                            GAnalys[textUuid].fileout = correctPath(`${dirOut}${bundleName}/unkown_text/${entry[5][0][1]}.txt`);
                                             GAnalys[textUuid].content = JSON.stringify(entry, null, 2);
                                             console.log(`${textUuid} has text info`);
                                         }
@@ -244,7 +247,9 @@ function analysBitmapAndPlist(bundleName, packs, paths, uuids) {
 }
 
 // 从 material/effect 的 json 内容中提取类型
-function analysPathsMaterialAndEffect(bundleName, packs, paths, uuids) {
+function analysPathsMaterialAndEffect(ctx, bundleName, packs, paths, uuids) {
+    const { assets: GAnalys, configs: GConfig } = ctx.state;
+
     // 先标记 Material / EffectAsset 类型
     for (const key in GAnalys) {
         const item = GAnalys[key];
@@ -325,7 +330,9 @@ function analysPathsMaterialAndEffect(bundleName, packs, paths, uuids) {
 }
 
 // 解析 packs 中的 plist 信息，补全 spriteFrame 的 uuid
-function analysPacksPlist(bundleName, packs, paths, uuids) {
+function analysPacksPlist(ctx, bundleName, packs, paths, uuids) {
+    const { assets: GAnalys } = ctx.state;
+
     for (const [packUuid, packIndices] of Object.entries(packs)) {
         try {
             const packItem = GAnalys[packUuid];
@@ -365,7 +372,11 @@ function analysPacksPlist(bundleName, packs, paths, uuids) {
 }
 
 // 解析 spriteFrame / SpriteAtlas / AnimationClip / sp.SkeletonData 等
-function analysAnimFrameAtlas(bundleName, packs, paths, uuids) {
+function analysAnimFrameAtlas(ctx, bundleName, packs, paths, uuids) {
+    const { assets: GAnalys, configs: GConfig, unknownFrames: GUnkowns, spriteFrameNames: GFrameNames, atlasBySpriteFrame: GMapPlist } = ctx.state;
+    const { isPicture, correctPath } = ctx.helpers;
+    const { dirOut } = ctx;
+
     for (const key in GAnalys) {
         const item = GAnalys[key];
 
@@ -380,7 +391,7 @@ function analysAnimFrameAtlas(bundleName, packs, paths, uuids) {
                     const frame = json[5][0];
                     let frameName = frame.name;
                     GAnalys[texUuid].frames = GAnalys[texUuid].frames || {};
-                    if (this.isPicture(GAnalys[texUuid].ext)) {
+                    if (isPicture(GAnalys[texUuid].ext)) {
                         console.log(`${texUuid} has spriteframe info`);
                         console.log(`${texUuid} ${GAnalys[texUuid].ttype}`);
                         if (GAnalys[texUuid].frames[frameName]) {
@@ -420,7 +431,7 @@ function analysAnimFrameAtlas(bundleName, packs, paths, uuids) {
                                     const frame = framesArr[i];
                                     const texId = pngUuid;
 
-                                    if (this.isPicture(GAnalys[texId].ext)) {
+                                    if (isPicture(GAnalys[texId].ext)) {
                                         console.log(`${texId} has spriteframe info`);
                                         console.log(`${texId} ${GAnalys[texId].ttype}`);
 
@@ -576,7 +587,7 @@ function analysAnimFrameAtlas(bundleName, packs, paths, uuids) {
                                 for (let j = 0; j < pngUuids.length; j++) {
                                     const pngItem = GAnalys[pngUuids[j]];
                                     if (pngItem && !pngItem.fileout) {
-                                        pngItem.fileout = this.correctPath(`${this.dirOut}${pngItem.bundle}/unkown_sbine/${sbItem[nameIndex][j]}`);
+                                        pngItem.fileout = correctPath(`${dirOut}${pngItem.bundle}/unkown_sbine/${sbItem[nameIndex][j]}`);
                                         console.log("pngfile.fileout = ", pngItem.fileout);
                                         if (!pngItem.frames) {
                                             pngItem.frames = [];
@@ -635,11 +646,9 @@ function analysAnimFrameAtlas(bundleName, packs, paths, uuids) {
                                         const pngItem2 = GAnalys[pngUuids[j]];
                                         if (pngItem2 && !pngItem2.fileout) {
                                             if (sbItem[5][j].includes(".")) {
-                                                pngItem2.fileout = this.correctPath(`${this.dirOut}${pngItem2.bundle}/unkown_sbine/${sbItem[5][j]}`);
+                                                pngItem2.fileout = correctPath(`${dirOut}${pngItem2.bundle}/unkown_sbine/${sbItem[5][j]}`);
                                             } else {
-                                                pngItem2.fileout = this.correctPath(
-                                                    `${this.dirOut}${pngItem2.bundle}/unkown_sbine/${owner.sbines.skname}${pngItem2.ext}`
-                                                );
+                                                pngItem2.fileout = correctPath(`${dirOut}${pngItem2.bundle}/unkown_sbine/${owner.sbines.skname}${pngItem2.ext}`);
                                             }
 
                                             console.log("pngfile.fileout = ", pngItem2.fileout);
@@ -672,7 +681,10 @@ function analysAnimFrameAtlas(bundleName, packs, paths, uuids) {
 }
 
 // 解析 _textureSetter 结构，建立纹理与 frame 的绑定
-function analystextureSetter(bundleName, packs, paths, uuids) {
+function analystextureSetter(ctx, bundleName, packs, paths, uuids) {
+    const { assets: GAnalys, configs: GConfig, unknownFrames: GUnkowns } = ctx.state;
+    const { isAFrame, isPicture } = ctx.helpers;
+
     // 先处理 GConfig 中的 json
     for (const cid in GConfig) {
         const cfg = GConfig[cid];
@@ -682,11 +694,11 @@ function analystextureSetter(bundleName, packs, paths, uuids) {
                     const json = JSON.parse(cfg.content);
                     for (let i = 0; i < json[5].length; i++) {
                         const frame = json[5][i];
-                        if (!this.isAFrame(frame)) continue;
+                        if (!isAFrame(frame)) continue;
 
                         if (GAnalys[json[1][0]]) {
                             const texUuid = json[1][0];
-                            if (this.isPicture(GAnalys[texUuid].ext)) {
+                            if (isPicture(GAnalys[texUuid].ext)) {
                                 GAnalys[texUuid].frames = GAnalys[texUuid].frames || {};
                                 GAnalys[texUuid].frames[frame.name] && (frame.name = `${frame.name}_${cid}`);
                                 GAnalys[texUuid].frames[frame.name] = frame;
@@ -704,7 +716,7 @@ function analystextureSetter(bundleName, packs, paths, uuids) {
                             }
                         } else {
                             const texUuid2 = UuidUtils.decompressUuid(json[1][0]);
-                            if (this.isPicture(GAnalys[texUuid2].ext)) {
+                            if (isPicture(GAnalys[texUuid2].ext)) {
                                 GAnalys[texUuid2].frames = GAnalys[texUuid2].frames || {};
                                 GAnalys[texUuid2].frames[frame.name] && (frame.name = `${frame.name}_${cid}`);
                                 GAnalys[texUuid2].frames[frame.name] = frame;
@@ -729,11 +741,11 @@ function analystextureSetter(bundleName, packs, paths, uuids) {
                     const json = JSON.parse(item.content);
                     for (let i = 0; i < json[5].length; i++) {
                         const frame = json[5][i];
-                        if (!this.isAFrame(frame)) continue;
+                        if (!isAFrame(frame)) continue;
 
                         const texUuid = json[1][0];
                         if (GAnalys[texUuid]) {
-                            if (this.isPicture(GAnalys[texUuid].ext)) {
+                            if (isPicture(GAnalys[texUuid].ext)) {
                                 GAnalys[texUuid].frames = GAnalys[texUuid].frames || {};
                                 GAnalys[texUuid].frames[frame.name] && (frame.name = `${frame.name}_${key}`);
                                 GAnalys[texUuid].frames[frame.name] = frame;
@@ -751,7 +763,7 @@ function analystextureSetter(bundleName, packs, paths, uuids) {
                             }
                         } else {
                             const texUuid2 = UuidUtils.decompressUuid(json[1][0]);
-                            if (GAnalys[texUuid2] && this.isPicture(GAnalys[texUuid2].ext)) {
+                            if (GAnalys[texUuid2] && isPicture(GAnalys[texUuid2].ext)) {
                                 GAnalys[texUuid2].frames = GAnalys[texUuid2].frames || {};
                                 GAnalys[texUuid2].frames[frame.name] && (frame.name = `${frame.name}_${key}`);
                                 GAnalys[texUuid2].frames[frame.name] = frame;
@@ -777,7 +789,7 @@ function analystextureSetter(bundleName, packs, paths, uuids) {
                     for (let i = 0; i < json2[5].length; i++) {
                         const fontInfo = json2[5][i];
                         const fontTexUuid = UuidUtils.decompressUuid(json2[1][0]);
-                        if (GAnalys[fontTexUuid] && GAnalys[fontTexUuid].png_uuid && this.isPicture(GAnalys[GAnalys[fontTexUuid].png_uuid].ext)) {
+                        if (GAnalys[fontTexUuid] && GAnalys[fontTexUuid].png_uuid && isPicture(GAnalys[GAnalys[fontTexUuid].png_uuid].ext)) {
                             GAnalys[GAnalys[fontTexUuid].png_uuid].bitmap = {
                                 name: fontInfo[1],
                                 info: fontInfo[3],
