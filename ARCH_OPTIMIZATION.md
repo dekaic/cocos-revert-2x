@@ -16,7 +16,7 @@
 - `Context + State`：替代历史全局表/单例，模块统一显式传 `ctx`（不再依赖 `this` 隐式上下文）。  
 - `Pipeline`：用 `src/core/pipeline.js: runRevert(ctx)` 串起旧逻辑，入口与流程更清晰。  
 - `Manifest`：新增 `BundleManifestLoader/normalizeManifest`（`src/core/manifest/*`），规范化结果落在 `ctx.state.bundleNormalizedManifest` 供后续定位/扩展使用。  
-- `ScriptExtractorPlugin`：脚本拆分迁移到 `src/core/plugins/script-extractor.js` 并通过 CLI 启用（输出到 `<dirOut>/scripts`）。
+- `ScriptExtractorPlugin`：脚本拆分迁移到 `src/core/plugins/script-extractor.js` 并通过 CLI 启用（输出到 `<dirOut>/scripts`）；支持 `__require(modules)` 与 `define(id,factory)` 两类构建格式，并在检测到 factory 内存在多段 `cc._RF.push/pop` 时按段拆分脚本与 `.meta`（适配 subpackages 的单文件合并脚本）。
 
 ---
 

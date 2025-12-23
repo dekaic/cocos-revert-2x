@@ -2,6 +2,26 @@ const { v4: uuidv4 } = require("uuid");
 const UuidUtils = require("./utils/uuid-utils");
 const { deserialize } = require("./libs/parseclass");
 
+function inferTextAssetExt(content) {
+    const text = (content || "").trimStart();
+    if (!text) {
+        return "";
+    }
+    if (text[0] === "{" || text[0] === "[") {
+        return ".json";
+    }
+    if (text.startsWith("<?xml") || text[0] === "<") {
+        if (text.includes("<tileset")) {
+            return ".tsx";
+        }
+        if (text.includes("<plist")) {
+            return ".plist";
+        }
+        return ".xml";
+    }
+    return "";
+}
+
 // 分析位图字体和 plist / material / effect / anim 等（来自 packs）
 function analysBitmapAndPlist(ctx, bundleName, packs, paths, uuids) {
     const { assets: GAnalys, configs: GConfig, animClipsByName: GAnimMp, atlasBySpriteFrame: GMapPlist } = ctx.state;
@@ -194,7 +214,16 @@ function analysBitmapAndPlist(ctx, bundleName, packs, paths, uuids) {
                                             delete GConfig[textUuid];
                                             GAnalys[textUuid].ttype = "cc.TextAsset";
                                             entry[5] = entry[0];
-                                            GAnalys[textUuid].fileout = correctPath(`${dirOut}${bundleName}/unkown_text/${entry[5][0][1]}.txt`);
+                                            const fallbackName = (entry[5] && entry[5][0] && entry[5][0][1]) || textUuid;
+                                            const textContent = (entry[5] && entry[5][0] && entry[5][0][2]) || "";
+                                            const inferredExt = inferTextAssetExt(textContent);
+                                            let fileout = GAnalys[textUuid].fileout;
+                                            if (!fileout) {
+                                                fileout = `${dirOut}${bundleName}/unkown_text/${fallbackName}.txt`;
+                                            } else if (inferredExt && fileout.endsWith(".txt")) {
+                                                fileout = fileout.slice(0, -4) + inferredExt;
+                                            }
+                                            GAnalys[textUuid].fileout = correctPath(fileout);
                                             GAnalys[textUuid].content = JSON.stringify(entry, null, 2);
                                             console.log(`${textUuid} has text info`);
                                         }

@@ -1,9 +1,44 @@
+const fs = require("fs");
 const path = require("path");
 const { createContext } = require("./core/context");
 const { runRevert } = require("./core/pipeline");
 const { runScriptExtraction } = require("./core/plugins/script-extractor");
+const { collectBundleConfigPaths } = require("./core/manifest/bundle-manifest-loader");
+const { initErrorLog } = require("./utils/error-log");
 
 const ensureTrailingSlash = (dirPath) => (dirPath.endsWith(path.sep) ? dirPath : `${dirPath}${path.sep}`);
+
+const resolveInputDir = (dirIn, logger) => {
+    const resolved = path.resolve(dirIn);
+    if (path.basename(resolved) === "assets") {
+        return resolved;
+    }
+
+    const assetsCandidate = path.join(resolved, "assets");
+    try {
+        if (!fs.statSync(assetsCandidate).isDirectory()) {
+            return resolved;
+        }
+    } catch {
+        return resolved;
+    }
+
+    const rootBundles = collectBundleConfigPaths(resolved);
+    const assetBundles = collectBundleConfigPaths(assetsCandidate);
+    const shouldUseAssets =
+        rootBundles.length === 1 &&
+        rootBundles[0].bundleName === "assets" &&
+        assetBundles.length >= 1;
+
+    if (shouldUseAssets) {
+        logger?.warn?.(
+            `Input dir looks like a build root; switching to assets directory: ${assetsCandidate}`
+        );
+        return assetsCandidate;
+    }
+
+    return resolved;
+};
 
 const parseCliArgs = () => {
     const args = process.argv.slice(2);
@@ -16,6 +51,7 @@ const parseCliArgs = () => {
         scriptsNeedJsPath: null,
         scriptsEntries: [],
         scriptsBeautify: true,
+        scriptsSelfContained: false,
     };
 
     const readValue = (label, currentIndex) => {
@@ -61,6 +97,10 @@ const parseCliArgs = () => {
             case "--no-scripts-beautify":
                 options.scriptsBeautify = false;
                 break;
+            case "--scripts-self-contained":
+            case "--scripts-standalone":
+                options.scriptsSelfContained = true;
+                break;
             case "-h":
             case "--help":
                 options.showHelp = true;
@@ -86,6 +126,7 @@ const printHelp = () => {
         "  --scripts-needjs <file>         needjs.json path (default: ./needjs.json)",
         "  --scripts-entry <file>          Analyze a specific entry js (repeatable, overrides auto bundle scan)",
         "  --no-scripts-beautify           Skip js-beautify for extracted scripts",
+        "  --scripts-self-contained        Export RF scripts with dependency guards (larger, but loadable standalone)",
         "  -h, --help                      Show help",
     ];
     console.log(lines.join("\n"));
@@ -104,7 +145,10 @@ const main = async () => {
         return;
     }
 
-    const ctx = createContext({ dirIn: options.dirIn, dirOut: options.dirOut, log: console });
+    initErrorLog({ logFilePath: path.join(options.dirOut, "error.log") });
+
+    const dirIn = resolveInputDir(options.dirIn, console);
+    const ctx = createContext({ dirIn, dirOut: options.dirOut, log: console });
 
     try {
         if (!options.scriptsOnly) {
@@ -117,6 +161,7 @@ const main = async () => {
                 needJsPath: options.scriptsNeedJsPath || undefined,
                 entries: options.scriptsEntries,
                 beautify: options.scriptsBeautify,
+                selfContainedRf: options.scriptsSelfContained,
             });
             ctx.log.log("Script extraction completed:", result.outputRoot);
         }

@@ -1,6 +1,6 @@
 // 基础工具函数集合
 function isPicture(ext) {
-    return ext === ".png" || ext === ".jpg" || ext === ".jpeg";
+    return ext === ".png" || ext === ".jpg" || ext === ".jpeg" || ext === ".astc";
 }
 
 // 修正路径（过滤非法字符）
@@ -151,7 +151,7 @@ function plistWriteDict(ctx, obj, indent) {
                     indent +
                     `<dict>
 `;
-                this.plistWriteDict(ctx, val, indent + "\t");
+                plistWriteDict(ctx, val, indent + "\t");
                 ctx.xml +=
                     indent +
                     `</dict>

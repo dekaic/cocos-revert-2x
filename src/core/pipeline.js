@@ -22,6 +22,7 @@ const {
 
 const { collectBundleConfigPaths } = require("./manifest/bundle-manifest-loader");
 const { normalizeManifest } = require("./manifest/normalize-manifest");
+const { getAstcSize } = require("../utils/astc-utils");
 
 const CONFIG_JSON_REGEX = /^config(\.[^.]+)?\.json$/i;
 const INDEX_JS_REGEX = /^index(\.[^.]+)?\.js$/i;
@@ -71,9 +72,17 @@ function scanSourceFiles(ctx) {
 
             if (isPicture(extname)) {
                 try {
-                    const sizeInfo = imageSize(content);
-                    item.width = sizeInfo.width;
-                    item.height = sizeInfo.height;
+                    if (extname === ".astc") {
+                        const sizeInfo = getAstcSize(content);
+                        if (sizeInfo) {
+                            item.width = sizeInfo.width;
+                            item.height = sizeInfo.height;
+                        }
+                    } else {
+                        const sizeInfo = imageSize(content);
+                        item.width = sizeInfo.width;
+                        item.height = sizeInfo.height;
+                    }
                 } catch {
                     // ignore
                 }
@@ -175,4 +184,3 @@ async function runRevert(ctx) {
 module.exports = {
     runRevert,
 };
-

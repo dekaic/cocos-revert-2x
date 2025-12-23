@@ -1,5 +1,7 @@
 const fs = require("fs");
+const imageSize = require("image-size");
 const DirUtils = require("./utils/dir-utils");
+const { decodeAstcToPng } = require("./utils/astc-utils");
 
 const format = (template, ...args) =>
     template.replace(/\{(\d+)\}/g, (match, index) => (args[index] === undefined ? match : String(args[index])));
@@ -21,6 +23,35 @@ async function copyFiles(ctx) {
         if (out && item.filein) {
             out = out.replace(/\\/g, "/");
             if (!out.includes(".prefab")) {
+                if (item.ext === ".astc") {
+                    if (out.toLowerCase().endsWith(".astc")) {
+                        out = out.replace(/\.astc$/i, ".png");
+                    }
+                    const mappedOut = sbineMap[out] ? out.replace("unkown_sbine", `unkown_sbine/${key}`) : out;
+                    sbineMap[mappedOut] = key;
+
+                    const arr = mappedOut.split("/");
+                    arr.pop();
+                    await DirUtils.dirExists(arr.join("/"));
+
+                    const result = decodeAstcToPng(item.filein, mappedOut);
+                    if (!result.ok) {
+                        console.warn("copyFiles astc decode err:", result.error && result.error.message ? result.error.message : result.error);
+                    } else {
+                        item.fileout = mappedOut;
+                        if (!item.width || !item.height) {
+                            try {
+                                const sizeInfo = imageSize(fs.readFileSync(mappedOut));
+                                item.width = sizeInfo.width;
+                                item.height = sizeInfo.height;
+                            } catch {
+                                // ignore
+                            }
+                        }
+                    }
+                    continue;
+                }
+
                 // 避免 sbine 重名
                 const mappedOut = sbineMap[out] ? out.replace("unkown_sbine", `unkown_sbine/${key}`) : out;
                 sbineMap[mappedOut] = key;
@@ -33,6 +64,7 @@ async function copyFiles(ctx) {
             }
         } else if (item.filein && isPicture(item.ext)) {
             let unkownPath = correctPath(`${dirOut}${item.bundle}/unkown/${key}`);
+            const outputExt = item.ext === ".astc" ? ".png" : item.ext;
 
             if (item.frames) {
                 let count = 0;
@@ -48,7 +80,7 @@ async function copyFiles(ctx) {
 
             unkownMap[unkownPath] = unkownMap[unkownPath] || {
                 path: unkownPath,
-                ext: item.ext,
+                ext: outputExt,
                 count: 0,
             };
             unkownMap[unkownPath].count += 1;
@@ -62,6 +94,7 @@ async function copyFiles(ctx) {
 
         if (!out2 && item2.filein && isPicture(item2.ext) && item2.frames) {
             let unkownPath = correctPath(`${dirOut}${item2.bundle}/unkown/${key}`);
+            const outputExt = item2.ext === ".astc" ? ".png" : item2.ext;
 
             if (item2.frames) {
                 let count = 0;
@@ -78,15 +111,30 @@ async function copyFiles(ctx) {
             if (!unkownMap[unkownPath]) {
                 console.log();
             }
-            item2.fileout = correctPath(unkownMap[unkownPath].path + unkownMap[unkownPath].ext);
+            item2.fileout = correctPath(unkownMap[unkownPath].path + (unkownMap[unkownPath].ext || outputExt));
             if (unkownMap[unkownPath].count > 1) {
-                item2.fileout = correctPath(`${unkownMap[unkownPath].path}/${key}${unkownMap[unkownPath].ext}`);
+                item2.fileout = correctPath(`${unkownMap[unkownPath].path}/${key}${unkownMap[unkownPath].ext || outputExt}`);
             }
 
             const arr2 = item2.fileout.replace(/\\/g, "/").split("/");
             arr2.pop();
             await DirUtils.dirExists(arr2.join("/"));
-            fs.copyFileSync(item2.filein, item2.fileout);
+            if (item2.ext === ".astc") {
+                const result = decodeAstcToPng(item2.filein, item2.fileout);
+                if (!result.ok) {
+                    console.warn("copyFiles astc decode err:", result.error && result.error.message ? result.error.message : result.error);
+                } else if (!item2.width || !item2.height) {
+                    try {
+                        const sizeInfo = imageSize(fs.readFileSync(item2.fileout));
+                        item2.width = sizeInfo.width;
+                        item2.height = sizeInfo.height;
+                    } catch {
+                        // ignore
+                    }
+                }
+            } else {
+                fs.copyFileSync(item2.filein, item2.fileout);
+            }
         }
     }
 

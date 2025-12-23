@@ -118,6 +118,18 @@ function parseBundleConfig(ctx, bundleName, cfgJson) {
                 GConfig[uuid].ttype = types[typeIndex];
                 GConfig[uuid].fileout = correctPath(`${bundleOutDir}${pathDir}${EXT_MAP[types[typeIndex]]}`);
             }
+        } else if (types[typeIndex] === "cc.TextAsset") {
+            if (GConfig[uuid]) {
+                GConfig[uuid].ttype = types[typeIndex];
+                GConfig[uuid].fileout = correctPath(`${bundleOutDir}${pathDir}${EXT_MAP[types[typeIndex]]}`);
+            } else if (GAnalys[uuid]) {
+                GAnalys[uuid].ttype = types[typeIndex];
+                GAnalys[uuid].fileout = correctPath(`${bundleOutDir}${pathDir}${EXT_MAP[types[typeIndex]]}`);
+            } else {
+                GConfig[uuid] = GConfig[uuid] || { bundle: bundleName };
+                GConfig[uuid].ttype = types[typeIndex];
+                GConfig[uuid].fileout = correctPath(`${bundleOutDir}${pathDir}${EXT_MAP[types[typeIndex]]}`);
+            }
         } else if (types[typeIndex] === "dragonBones.DragonBonesAsset" || types[typeIndex] === "dragonBones.DragonBonesAtlasAsset") {
             GAnalys[uuid] = GAnalys[uuid] || { bundle: bundleName };
             GAnalys[uuid].ttype = types[typeIndex];

@@ -1,6 +1,9 @@
+const fs = require("fs");
+const path = require("path");
 const { v4: uuidv4 } = require("uuid");
 const sharp = require("sharp");
 const DirUtils = require("./utils/dir-utils");
+const { decodeAstcToPng } = require("./utils/astc-utils");
 
 // 拆分自动图集，生成单独贴图
 async function SplitAutoAtlas(ctx) {
@@ -26,6 +29,25 @@ async function SplitAutoAtlas(ctx) {
                     break;
                 }
             }
+        }
+
+        let sourcePath = atlas.filein;
+        if (atlas.ext === ".astc") {
+            const cachePath = path.join(dirOut, "__astc_cache", `${key}.png`);
+            const result = decodeAstcToPng(atlas.filein, cachePath);
+            if (!result.ok) {
+                console.warn(
+                    "SplitAutoAtlas astc decode err:",
+                    result.error && result.error.message ? result.error.message : result.error
+                );
+                continue;
+            }
+            sourcePath = cachePath;
+        }
+
+        if (!sourcePath || !fs.existsSync(sourcePath)) {
+            console.warn("SplitAutoAtlas source missing:", sourcePath || "<empty>");
+            continue;
         }
 
         // 遍历帧，裁切出独立图片
@@ -81,7 +103,7 @@ async function SplitAutoAtlas(ctx) {
             }
 
             // 从大图裁切
-            let cropSharp = sharp(atlas.filein).extract({
+            let cropSharp = sharp(sourcePath).extract({
                 left: x,
                 top: y,
                 width: w,

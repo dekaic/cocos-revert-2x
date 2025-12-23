@@ -22,13 +22,23 @@ function resolveBundleEntryScript(bundleRoot) {
     return path.join(bundleRoot, candidates[0]);
 }
 
-function beautifyScriptsDirectory(rootDir) {
+function beautifyScriptsDirectory(rootDir, options = {}) {
     const beautify = require("js-beautify").js;
+    const maxBytes = Number.isFinite(options.maxBytes) ? options.maxBytes : 1000000;
 
     DirUtils.walkSync(
         rootDir,
         (entry) => entry.isFile() && path.extname(entry.name) === ".js",
         (name, fullPath) => {
+            try {
+                const stat = fs.statSync(fullPath);
+                if (stat.size > maxBytes) {
+                    return;
+                }
+            } catch {
+                return;
+            }
+
             const content = fs.readFileSync(fullPath, "utf8");
             const pretty = beautify(content, {
                 indent_size: 2,
@@ -63,12 +73,16 @@ async function runScriptExtraction(ctx, options = {}) {
         const stat = await DirUtils.getStat(entryFile);
         if (!stat) continue;
 
+        const bundleName = path.basename(path.dirname(entryFile));
         ctx.log.log("分析脚本入口:", entryFile);
         const codeText = fs.readFileSync(entryFile, "utf-8");
 
         const analysis = new Analysis(needMap, {
             outputRoot,
             logger: ctx.log,
+            bundleName,
+            entryFile,
+            selfContainedRf: options.selfContainedRf,
         });
 
         const ok = await analysis.splitCompile(codeText);
@@ -76,7 +90,7 @@ async function runScriptExtraction(ctx, options = {}) {
     }
 
     if (hasResult && options.beautify !== false) {
-        beautifyScriptsDirectory(outputRoot);
+        beautifyScriptsDirectory(outputRoot, { maxBytes: options.beautifyMaxBytes });
     }
 
     return { hasResult, outputRoot };
@@ -85,4 +99,3 @@ async function runScriptExtraction(ctx, options = {}) {
 module.exports = {
     runScriptExtraction,
 };
-
